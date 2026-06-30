@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 const DEFAULT_MCP_CORE_URL = "http://127.0.0.1:8644";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Recovery now blocks until the replacement vehicle reaches the customer in the
+// simulation, so allow well beyond the previous fixed ~55s window.
+export const maxDuration = 300;
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {

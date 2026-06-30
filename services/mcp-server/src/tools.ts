@@ -114,16 +114,69 @@ function getVehicleAnchorPoint(
   return vehicle.route[0] ?? null;
 }
 
-async function waitForDemoRecoveryWindow(
-  incidentCreatedAt: string,
-): Promise<void> {
-  // Leave a small allowance for final verification/audit writes so the
-  // end-to-end incident timestamp lands near the demo's 58-second target.
-  const targetRecoveryMs = 55_000;
-  const minimumBlueRouteMs = 5_000;
-  const elapsedMs = Date.now() - new Date(incidentCreatedAt).getTime();
-  const waitMs = Math.max(minimumBlueRouteMs, targetRecoveryMs - elapsedMs);
-  await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+function delay(ms: number): Promise<void> {
+  return new Promise((resolveWait) => setTimeout(resolveWait, ms));
+}
+
+// Keep the blue replacement route visible for at least a beat before recovery
+// can be reported complete.
+const RECOVERY_MIN_BLUE_ROUTE_MS = 5_000;
+const RECOVERY_ARRIVAL_POLL_MS = 1_000;
+// Safety cap so the agent/HTTP request can never hang (e.g. if the sim is
+// paused). Kept below the dashboard recover route's maxDuration and Node's
+// default request timeout.
+const RECOVERY_ARRIVAL_MAX_WAIT_MS = 270_000;
+
+// Blocks until the replacement vehicle(s) actually reach the recovered orders'
+// delivery stops in the live simulation, so recovery is only reported complete
+// once the truck has arrived — not on a fixed wall-clock timer that can outrun
+// the vehicle's real route ETA.
+async function waitForRecoveryVehicleArrival(params: {
+  incidentCreatedAt: string;
+  vehicleIds: string[];
+  orderIds: string[];
+}): Promise<void> {
+  const startedAt = Date.now();
+
+  const sinceIncidentMs =
+    startedAt - new Date(params.incidentCreatedAt).getTime();
+  if (sinceIncidentMs < RECOVERY_MIN_BLUE_ROUTE_MS) {
+    await delay(RECOVERY_MIN_BLUE_ROUTE_MS - sinceIncidentMs);
+  }
+
+  // Latest delivery ETA (absolute sim-seconds) across the recovered orders on
+  // their replacement vehicles — i.e. when the last drop-off is reached.
+  const world = await loadSimulationWorld();
+  const orderIdSet = new Set(params.orderIds);
+  const vehicleIdSet = new Set(params.vehicleIds);
+  let targetEtaSeconds = 0;
+  for (const vehicle of world.vehicles) {
+    if (!vehicleIdSet.has(vehicle.id)) {
+      continue;
+    }
+    for (const stop of vehicle.routingPlan?.orderedStops ?? []) {
+      if (stop.orderId && orderIdSet.has(stop.orderId)) {
+        targetEtaSeconds = Math.max(targetEtaSeconds, stop.etaSeconds);
+      }
+    }
+  }
+
+  // Without a known ETA we can only fall back to the minimum visibility window.
+  if (targetEtaSeconds <= 0) {
+    return;
+  }
+
+  while (Date.now() - startedAt < RECOVERY_ARRIVAL_MAX_WAIT_MS) {
+    const tick = await readTickState();
+    // Sim was reset/cleared — nothing left to wait for.
+    if (tick.status === "idle") {
+      return;
+    }
+    if (tick.elapsedSeconds >= targetEtaSeconds) {
+      return;
+    }
+    await delay(RECOVERY_ARRIVAL_POLL_MS);
+  }
 }
 
 function isVehicleStagedAtHub(
@@ -215,6 +268,25 @@ function asJson(value: unknown): Json {
 
 function getDashboardBaseUrl(): string {
   return process.env.HERMES_DASHBOARD_BASE_URL?.trim() || "http://127.0.0.1:3001";
+}
+
+// Wraps a dashboard fetch so a connection-level failure (e.g. the dashboard is
+// down or HERMES_DASHBOARD_BASE_URL points at the wrong port) surfaces the
+// target URL instead of an opaque "fetch failed".
+async function fetchDashboard(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = new URL(path, getDashboardBaseUrl());
+  try {
+    return await fetch(url, init);
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot reach dashboard at ${url.toString()} (${reason}). ` +
+        "Is the dashboard running, and does HERMES_DASHBOARD_BASE_URL point at the right port?",
+    );
+  }
 }
 
 async function getPlaceholderCheckoutVehicleId(): Promise<string> {
@@ -1264,8 +1336,8 @@ export function registerActionTools(
     },
     apply_congestion_recovery_route: async (input) => {
       const parsed = toolInputSchemas.apply_congestion_recovery_route.parse(input);
-      const response = await fetch(
-        new URL("/api/sim/congestion/recover", getDashboardBaseUrl()),
+      const response = await fetchDashboard(
+        "/api/sim/congestion/recover",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1320,8 +1392,8 @@ export function registerActionTools(
           `No reassigned incident orders were found for ${parsed.incidentId}; run assign_replacement_driver before apply_breakdown_recovery_reroute.`,
         );
       }
-      const response = await fetch(
-        new URL("/api/sim/breakdown/recover", getDashboardBaseUrl()),
+      const response = await fetchDashboard(
+        "/api/sim/breakdown/recover",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2091,7 +2163,11 @@ export function registerActionTools(
     complete_delivery_recovery: async (input) => {
       const parsed = toolInputSchemas.complete_delivery_recovery.parse(input);
       const incidentCreatedAt = await getIncidentCreatedAt(parsed.incidentId);
-      await waitForDemoRecoveryWindow(incidentCreatedAt);
+      await waitForRecoveryVehicleArrival({
+        incidentCreatedAt,
+        vehicleIds: parsed.vehicleIds,
+        orderIds: parsed.orderIds,
+      });
       await completeSimulatedRecovery({
         orderIds: parsed.orderIds,
         vehicleIds: parsed.vehicleIds,

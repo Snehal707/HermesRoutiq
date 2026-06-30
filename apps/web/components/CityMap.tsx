@@ -543,8 +543,6 @@ function buildMarkerIcon(svg: string, width: number, height: number, anchorY = h
 // professionally-drawn icon rather than a hand-rolled path.
 const LUCIDE_TRUCK =
   '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>';
-const LUCIDE_ZAP =
-  '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>';
 const LUCIDE_ALERT =
   '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>';
 const LUCIDE_WAREHOUSE =
@@ -583,7 +581,7 @@ const VEHICLE_ICONS: Record<RouteStatus, MarkerIconDefinition> = {
   normal: buildBadgeIcon("#10b981", LUCIDE_TRUCK),
   at_risk: buildBadgeIcon("#f59e0b", LUCIDE_TRUCK),
   incident: buildBadgeIcon("#ef4444", LUCIDE_ALERT),
-  recovery: buildBadgeIcon("#3b82f6", LUCIDE_ZAP),
+  recovery: buildBadgeIcon("#3b82f6", LUCIDE_TRUCK),
   completed: buildBadgeIcon("#10b981", LUCIDE_TRUCK),
 };
 

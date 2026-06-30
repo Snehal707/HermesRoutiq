@@ -39,3 +39,7 @@ coverage/
 
 # Stray accidental symlink in repo root
 /Program
+
+# Temp screenshots / QA artifacts
+/tmp-*.png
+/.tmp-*.png

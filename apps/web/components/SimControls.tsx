@@ -109,7 +109,7 @@ export function SimControls({
         type="button"
         onClick={onCongestion}
         disabled={congestionDisabled}
-        className="control-button flex items-center justify-center"
+        className="breakdown-button"
       >
         <svg
           className="mr-1.5 h-4 w-4"
