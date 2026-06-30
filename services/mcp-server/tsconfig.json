@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "rootDir": "../..",
+    "outDir": "dist",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@hermes-routiq/shared": ["../../packages/shared/types/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "../../packages/shared/types/**/*.ts",
+    "../../apps/web/lib/supabase/database.types.ts"
+  ]
+}

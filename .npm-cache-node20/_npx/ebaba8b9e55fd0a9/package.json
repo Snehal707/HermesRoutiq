@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "node": "^20.20.2"
+  },
+  "_npx": {
+    "packages": [
+      "node@20"
+    ]
+  }
+}

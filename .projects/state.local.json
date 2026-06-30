@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "project": {
+    "initializedAt": "2026-06-22T05:58:11.704Z",
+    "merchantDisplayName": null,
+    "merchantId": "acct_1TkQpqIQJGNYorYa",
+    "projectId": "project_61UuOpO0C7mq1YH4D16UtonCPYSQ4b1uo7HTlgWPwEIi",
+    "projectName": "HermesRoutiq"
+  },
+  "providers": {
+    "inngest": {
+      "accountRequestId": "fprvcnn_61UuObd3hwSSHnlni16UtonCPYSQ4b1uo7HTlgWPwC0m",
+      "configuration": {},
+      "linkedAt": "2026-06-22T05:43:57.278Z",
+      "providerId": "prvdr_61UQ7Ta2evjv111Sl5Tqa",
+      "providerName": "Inngest",
+      "redirectUrl": null,
+      "requestedAt": "2026-06-22T05:43:57.278Z",
+      "status": "complete"
+    }
+  },
+  "resources": {
+    "inngest-app": {
+      "configuration": {
+        "id": "hermes-routiq"
+      },
+      "createdAt": "2026-06-22T06:01:51.242Z",
+      "lastRevealedAt": "2026-06-22T06:01:51.747Z",
+      "lastStatus": "complete",
+      "name": "inngest-app",
+      "providerId": "prvdr_61UQ7Ta2evjv111Sl5Tqa",
+      "providerName": "Inngest",
+      "resourceId": "fres_61UuOsvg0rMPlKXi716UtonCPYSQ4b1uo7HTlgWPwJdY",
+      "serviceId": "app"
+    }
+  }
+}

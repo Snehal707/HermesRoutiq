@@ -1,0 +1,92 @@
+{
+  "id": "soma-rush",
+  "name": "SoMa Rush Hour",
+  "market": "san-francisco",
+  "simulation_speed": 7.5,
+  "vehicle_count": 34,
+  "map_view": {
+    "longitude": -122.3991,
+    "latitude": 37.7832,
+    "zoom": 16.1,
+    "pitch": 58,
+    "bearing": 28
+  },
+  "waypoints": [
+    { "lat": 37.7892, "lng": -122.4016 },
+    { "lat": 37.7880, "lng": -122.4042 },
+    { "lat": 37.7863, "lng": -122.4050 },
+    { "lat": 37.7845, "lng": -122.4042 },
+    { "lat": 37.7830, "lng": -122.4025 },
+    { "lat": 37.7817, "lng": -122.4001 },
+    { "lat": 37.7814, "lng": -122.3975 },
+    { "lat": 37.7829, "lng": -122.3958 },
+    { "lat": 37.7849, "lng": -122.3961 },
+    { "lat": 37.7869, "lng": -122.3974 },
+    { "lat": 37.7886, "lng": -122.3992 }
+  ],
+  "traffic_zones": [
+    {
+      "id": "soma-core-gridlock",
+      "center": { "lat": 37.7840, "lng": -122.4003 },
+      "radius_meters": 240.0,
+      "severity": "high",
+      "slowdown_multiplier": 0.35
+    },
+    {
+      "id": "fremont-ramp",
+      "center": { "lat": 37.7818, "lng": -122.3974 },
+      "radius_meters": 140.0,
+      "severity": "medium",
+      "slowdown_multiplier": 0.58
+    }
+  ],
+  "signal_lights": [
+    {
+      "id": "signal-howard-1",
+      "location": { "lat": 37.7865, "lng": -122.4024 },
+      "control_location": { "lat": 37.7865, "lng": -122.4024 },
+      "display_location": { "lat": 37.7865, "lng": -122.4024 },
+      "controlled_route_from_waypoint_index": 8,
+      "controlled_route_to_waypoint_index": 0
+    },
+    {
+      "id": "signal-folsom-2",
+      "location": { "lat": 37.7832, "lng": -122.3994 },
+      "control_location": { "lat": 37.7832, "lng": -122.3994 },
+      "display_location": { "lat": 37.7832, "lng": -122.3994 },
+      "controlled_route_from_waypoint_index": 5,
+      "controlled_route_to_waypoint_index": 8
+    },
+    {
+      "id": "signal-harrison-1",
+      "location": { "lat": 37.7821, "lng": -122.3968 },
+      "control_location": { "lat": 37.7821, "lng": -122.3968 },
+      "display_location": { "lat": 37.7821, "lng": -122.3968 },
+      "controlled_route_from_waypoint_index": 4,
+      "controlled_route_to_waypoint_index": 7
+    }
+  ],
+  "scheduled_events": [
+    {
+      "id": "soma-congestion-30",
+      "kind": "congestion",
+      "due_at_sim_seconds": 30.0,
+      "title": "Rush-hour gridlock",
+      "description": "An early congestion spike builds across the SoMa corridor."
+    },
+    {
+      "id": "soma-congestion-75",
+      "kind": "congestion",
+      "due_at_sim_seconds": 75.0,
+      "title": "Ramp spillback",
+      "description": "Traffic backs up from the freeway ramps into delivery lanes."
+    },
+    {
+      "id": "soma-breakdown-120",
+      "kind": "vehicle_breakdown",
+      "due_at_sim_seconds": 120.0,
+      "title": "Heat-stressed van failure",
+      "description": "A backend-scheduled breakdown tests recovery after layered congestion."
+    }
+  ]
+}

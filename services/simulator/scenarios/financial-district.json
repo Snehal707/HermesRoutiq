@@ -1,0 +1,65 @@
+{
+  "id": "financial-district",
+  "name": "San Francisco Financial District",
+  "market": "san-francisco",
+  "simulation_speed": 6.0,
+  "vehicle_count": 28,
+  "map_view": {
+    "longitude": -122.4015,
+    "latitude": 37.7855,
+    "zoom": 15.4,
+    "pitch": 50,
+    "bearing": -10
+  },
+  "waypoints": [
+    { "lat": 37.7905, "lng": -122.3968 },
+    { "lat": 37.7895, "lng": -122.3990 },
+    { "lat": 37.7888, "lng": -122.4020 },
+    { "lat": 37.7875, "lng": -122.4045 },
+    { "lat": 37.7860, "lng": -122.4030 },
+    { "lat": 37.7850, "lng": -122.4000 },
+    { "lat": 37.7845, "lng": -122.4010 },
+    { "lat": 37.7830, "lng": -122.3985 },
+    { "lat": 37.7825, "lng": -122.3960 },
+    { "lat": 37.7815, "lng": -122.3995 },
+    { "lat": 37.7805, "lng": -122.4025 },
+    { "lat": 37.7840, "lng": -122.4040 }
+  ],
+  "traffic_zones": [
+    {
+      "id": "market-congestion",
+      "center": { "lat": 37.7842, "lng": -122.4006 },
+      "radius_meters": 180.0,
+      "severity": "high",
+      "slowdown_multiplier": 0.42
+    },
+    {
+      "id": "battery-corridor",
+      "center": { "lat": 37.7882, "lng": -122.3993 },
+      "radius_meters": 125.0,
+      "severity": "medium",
+      "slowdown_multiplier": 0.65
+    }
+  ],
+  "signal_lights": [
+    { "id": "signal-market-1", "location": { "lat": 37.7848, "lng": -122.4002 } },
+    { "id": "signal-battery-1", "location": { "lat": 37.7886, "lng": -122.3998 } },
+    { "id": "signal-folsom-1", "location": { "lat": 37.7829, "lng": -122.3981 } }
+  ],
+  "scheduled_events": [
+    {
+      "id": "demo-congestion-45",
+      "kind": "congestion",
+      "due_at_sim_seconds": 45.0,
+      "title": "Downtown congestion wave",
+      "description": "A Financial District congestion pocket should pressure one active route."
+    },
+    {
+      "id": "demo-breakdown-90",
+      "kind": "vehicle_breakdown",
+      "due_at_sim_seconds": 90.0,
+      "title": "Vehicle reliability incident",
+      "description": "A backend-scheduled breakdown should force recovery on the designated vehicle."
+    }
+  ]
+}

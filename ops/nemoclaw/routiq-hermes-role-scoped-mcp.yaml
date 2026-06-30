@@ -1,0 +1,51 @@
+mcp_servers:
+  routiq_monitoring:
+    url: "__ROUTIQ_MCP_URL__"
+    headers:
+      x-routiq-role: monitoring
+    enabled: true
+    connect_timeout: 20
+    timeout: 120
+    tools:
+      resources: false
+      prompts: false
+  routiq_routing:
+    url: "__ROUTIQ_MCP_URL__"
+    headers:
+      x-routiq-role: routing
+    enabled: true
+    connect_timeout: 20
+    timeout: 120
+    tools:
+      resources: false
+      prompts: false
+  routiq_finance:
+    url: "__ROUTIQ_MCP_URL__"
+    headers:
+      x-routiq-role: finance
+    enabled: true
+    connect_timeout: 20
+    timeout: 120
+    tools:
+      resources: false
+      prompts: false
+  routiq_operations:
+    url: "__ROUTIQ_MCP_URL__"
+    headers:
+      x-routiq-role: operations
+    enabled: true
+    connect_timeout: 20
+    timeout: 120
+    tools:
+      resources: false
+      prompts: false
+  routiq_payment:
+    url: "__ROUTIQ_MCP_URL__"
+    headers:
+      x-routiq-role: payment
+    enabled: true
+    connect_timeout: 20
+    timeout: 120
+    tools:
+      resources: false
+      prompts: false

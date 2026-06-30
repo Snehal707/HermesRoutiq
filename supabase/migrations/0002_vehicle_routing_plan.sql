@@ -1,0 +1,5 @@
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS routing_provider TEXT NOT NULL DEFAULT 'seed';
+
+ALTER TABLE vehicles
+ADD COLUMN IF NOT EXISTS routing_plan JSONB;

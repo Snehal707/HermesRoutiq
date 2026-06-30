@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit secrets)
+.env.*.local
+
+# Next.js
+.next/
+out/
+
+# Build / cache
+dist/
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Test
+coverage/
+
+.projects/cache
+.projects/vault
+.projects/state.test.json
+.projects/state.local.test.json
+.env
+.env.*
+!.env.example
+
+# Python virtualenvs
+.venv/
+**/.venv/
+
+# Stray accidental symlink in repo root
+/Program

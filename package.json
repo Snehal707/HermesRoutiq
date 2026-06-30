@@ -1,0 +1,23 @@
+{
+  "name": "hermes-routiq",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "simulator:dev": "python -m uvicorn services.simulator.app.main:app --host 127.0.0.1 --port 8010",
+    "lint": "npm run lint -w apps/web",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w @hermes-routiq/shared && npm run typecheck -w services-mcp-server",
+    "db:migrate": "npm run db:migrate -w apps/web",
+    "db:seed": "npm run db:seed -w apps/web",
+    "db:setup": "npm run db:migrate -w apps/web && npm run db:seed -w apps/web",
+    "mcp:dev": "npm run dev -w services-mcp-server",
+    "mcp:serve": "npm run serve -w services-mcp-server"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0"
+  }
+}

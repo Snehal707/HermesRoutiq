@@ -1,0 +1,24 @@
+preset:
+  name: routiq-mcp-http
+  description: "Reach the Hermes Routiq MCP server on the Windows host"
+
+network_policies:
+  routiq_mcp_http:
+    name: routiq_mcp_http
+    endpoints:
+      - host: 172.20.96.1
+        port: 8644
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/mcp" }
+          - allow: { method: POST, path: "/mcp" }
+          - allow: { method: DELETE, path: "/mcp" }
+          - allow: { method: GET, path: "/sse" }
+          - allow: { method: POST, path: "/messages" }
+    binaries:
+      - { path: /usr/local/bin/hermes }
+      - { path: /usr/local/bin/python3 }
+      - { path: /usr/bin/python3 }
+      - { path: /usr/bin/curl }
+      - { path: /opt/hermes/.venv/bin/python }

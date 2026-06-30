@@ -1,0 +1,35 @@
+{
+  "name": "services-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "serve": "tsx src/index.ts",
+    "start": "node --enable-source-maps dist/services/mcp-server/src/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "probe:reasoning": "tsx scripts/probe-reasoning.ts",
+    "prove:stripe-payouts": "tsx scripts/prove-stripe-driver-payouts.ts",
+    "prove:stripe-projects-pattern": "tsx scripts/prove-stripe-projects-pattern.ts",
+    "prove:infrastructure-provisioning": "tsx scripts/prove-infrastructure-provisioning.ts",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@hermes-routiq/shared": "*",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "@supabase/supabase-js": "^2.47.10",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.4.2",
+    "stripe": "^22.2.2",
+    "ws": "^8.21.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

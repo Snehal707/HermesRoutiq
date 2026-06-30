@@ -1,0 +1,2 @@
+ALTER TABLE incidents
+  ALTER COLUMN vehicle_id DROP NOT NULL;
