@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import math
 from typing import Iterable
 
 import httpx
 
 from app.providers.base import AvoidArea
 
-DETOUR_MARGIN_DEGREES = 0.0008
+# Detour via-points sit a full block (~220 m) outside the box so OSRM commits to
+# a parallel street instead of squeezing back through the congested block.
+DETOUR_MARGIN_DEGREES = 0.0025
+_EARTH_RADIUS_METERS = 6_371_000.0
+# Extra seconds charged per metre driven inside a congestion zone. Tuned so a
+# clean one-block detour beats crawling through a small congestion patch, while a
+# long looping detour never wins.
+CONGESTION_SECONDS_PER_METER = 0.5
 
 
 def _point_in_area(point: tuple[float, float], area: AvoidArea) -> bool:
@@ -131,6 +139,52 @@ def geometry_intersects_avoid_areas(
     return False
 
 
+def _haversine_meters(a: tuple[float, float], b: tuple[float, float]) -> float:
+    lng1, lat1 = a
+    lng2, lat2 = b
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    sin_lat = math.sin(d_lat / 2)
+    sin_lng = math.sin(d_lng / 2)
+    h = (
+        sin_lat * sin_lat
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * sin_lng * sin_lng
+    )
+    return 2 * _EARTH_RADIUS_METERS * math.asin(min(1.0, math.sqrt(h)))
+
+
+def avoid_area_exposure_meters(
+    geometry: Iterable[Iterable[float]],
+    avoid_areas: list[AvoidArea],
+) -> float:
+    """Approximate metres of `geometry` that fall inside any avoid area.
+
+    Used to rank candidate routes so congestion recovery can pick the least
+    congested option rather than requiring a route that avoids the area entirely
+    (which is often impossible when the destination sits inside or beside it).
+    """
+    normalized: list[tuple[float, float]] = []
+    for point in geometry:
+        values = list(point)
+        if len(values) < 2:
+            continue
+        normalized.append((float(values[0]), float(values[1])))
+    if len(normalized) < 2:
+        return 0.0
+
+    total = 0.0
+    for index in range(1, len(normalized)):
+        segment_start = normalized[index - 1]
+        segment_end = normalized[index]
+        midpoint = (
+            (segment_start[0] + segment_end[0]) / 2,
+            (segment_start[1] + segment_end[1]) / 2,
+        )
+        if any(_point_in_area(midpoint, area) for area in avoid_areas):
+            total += _haversine_meters(segment_start, segment_end)
+    return total
+
+
 def build_detour_candidates(
     start: tuple[float, float],
     end: tuple[float, float],
@@ -140,12 +194,17 @@ def build_detour_candidates(
     max_lng = avoid_area.max_lng + DETOUR_MARGIN_DEGREES
     min_lat = avoid_area.min_lat - DETOUR_MARGIN_DEGREES
     max_lat = avoid_area.max_lat + DETOUR_MARGIN_DEGREES
+    center_lng = (avoid_area.min_lng + avoid_area.max_lng) / 2
+    center_lat = (avoid_area.min_lat + avoid_area.max_lat) / 2
 
+    # A single via-point just outside one side of the box lets OSRM bend cleanly
+    # around that side. Routing through two opposite corners (the old approach)
+    # forced a zig-zag that produced long looping detours.
     return [
-        [start, (min_lng, max_lat), (max_lng, max_lat), end],
-        [start, (min_lng, min_lat), (max_lng, min_lat), end],
-        [start, (min_lng, min_lat), (min_lng, max_lat), end],
-        [start, (max_lng, min_lat), (max_lng, max_lat), end],
+        [start, (min_lng, center_lat), end],  # around the west side
+        [start, (max_lng, center_lat), end],  # around the east side
+        [start, (center_lng, max_lat), end],  # around the north side
+        [start, (center_lng, min_lat), end],  # around the south side
     ]
 
 
@@ -221,7 +280,25 @@ async def request_osrm_route(
         )
 
     start, end = coordinates
-    viable_candidates: list[tuple[list[list[float]], float, float, list[float]]] = []
+
+    RouteOption = tuple[list[list[float]], float, float, list[float]]
+
+    # Score routes by *effective* travel time: real OSRM duration plus a penalty
+    # for every metre spent inside a congestion zone (a stand-in for the slowdown
+    # there). This makes a short detour around a small congestion patch win, while
+    # an absurdly long looping detour never beats simply driving through — so we
+    # reduce congestion without sending the vehicle on a giant loop.
+    def effective_seconds(duration: float, route_geometry: list[list[float]]) -> float:
+        exposure = avoid_area_exposure_meters(route_geometry, avoid_areas)
+        return duration + exposure * CONGESTION_SECONDS_PER_METER
+
+    scored_options: list[tuple[float, RouteOption]] = [
+        (
+            effective_seconds(duration_seconds, geometry),
+            (geometry, distance_meters, duration_seconds, legs),
+        )
+    ]
+
     for area in avoid_areas:
         for candidate in build_detour_candidates(start, end, area):
             candidate_geometry, candidate_distance, candidate_duration, candidate_legs = (
@@ -232,26 +309,17 @@ async def request_osrm_route(
                     exclude=exclude,
                 )
             )
-            if geometry_intersects_avoid_areas(
-                candidate_geometry,
-                avoid_areas,
-                allow_start_inside=allow_start_inside,
-                allow_end_inside=allow_end_inside,
-            ):
-                continue
-            viable_candidates.append(
+            scored_options.append(
                 (
-                    candidate_geometry,
-                    candidate_distance,
-                    candidate_duration,
-                    candidate_legs,
+                    effective_seconds(candidate_duration, candidate_geometry),
+                    (
+                        candidate_geometry,
+                        candidate_distance,
+                        candidate_duration,
+                        candidate_legs,
+                    ),
                 )
             )
 
-    if not viable_candidates:
-        raise RuntimeError(
-            "OSRM could not find a route that avoids the congestion area."
-        )
-
-    viable_candidates.sort(key=lambda option: option[2])
-    return viable_candidates[0]
+    scored_options.sort(key=lambda option: option[0])
+    return scored_options[0][1]

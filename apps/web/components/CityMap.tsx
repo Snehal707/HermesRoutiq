@@ -5,7 +5,7 @@ import { TripsLayer } from "@deck.gl/geo-layers";
 import { IconLayer, PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { MapboxOverlayProps } from "@deck.gl/mapbox";
 import { useControl } from "react-map-gl/maplibre";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import {
   MAP_CENTER,
   DEFAULT_MAP_ZOOM,
@@ -119,6 +119,14 @@ const SIGNAL_PHASE_SECONDS: Record<SignalLight["phase"], number> = {
   yellow: 4,
   red: 14,
 };
+
+// Visual-only signal stops: how close (meters) a moving delivery truck must be
+// to a red signal's stop line to hold, how far ahead to sample for heading, and
+// the largest per-frame time step we trust (anything bigger is a reset/seek).
+// None of this affects route ETAs or recovery timing — only the rendered marker.
+const SIGNAL_STOP_RADIUS_METERS = 22;
+const SIGNAL_STOP_LOOKAHEAD_SECONDS = 1.2;
+const MAX_ANIMATION_FRAME_SECONDS = 5;
 
 interface MarkerIconDefinition {
   url: string;
@@ -1052,30 +1060,6 @@ export function CityMap({
     [routeRenderBounds, world.vehicles],
   );
 
-  const driverData = useMemo((): DriverDatum[] =>
-      world.vehicles.map((vehicle) => {
-        const renderRoute = getRenderableRoute(vehicle, routeRenderBounds);
-        const { position } = getVehiclePositionAtTime(
-          renderRoute,
-          elapsedSeconds,
-          vehicle.speedMps,
-          vehicle.frozenAtSeconds,
-          vehicle.routingPlan?.routeStartAtSeconds ?? 0,
-        );
-        const isParked = isParkedVehicle(vehicle);
-        const basePosition = latLngToLngLat(position);
-        const parkedPosition = parkedVehicleLayout.get(vehicle.id) ?? basePosition;
-
-        return {
-          id: vehicle.id,
-          position: isParked ? parkedPosition : basePosition,
-          routeStatus: vehicle.routeStatus,
-          isParked,
-        };
-      }),
-    [elapsedSeconds, parkedVehicleLayout, routeRenderBounds, world.vehicles],
-  );
-
   const hubData = useMemo((): PointDatum[] =>
       world.pickupHubs.map((hub) => ({
         id: hub.id,
@@ -1153,6 +1137,92 @@ export function CityMap({
       }),
     [ambientElapsedSeconds, ambientRouteSegmentCache, ambientSnapshotTimeSeconds, signalLights],
   );
+
+  // Per-vehicle "seconds held at red lights", so the rendered marker pauses at a
+  // red signal and resumes smoothly on green. This is purely visual — route ETAs
+  // and recovery timing run on the real clock and are never shifted by it.
+  const signalStopStateRef = useRef<{
+    lastElapsed: number;
+    stoppedSecondsByVehicle: Map<string, number>;
+  }>({ lastElapsed: elapsedSeconds, stoppedSecondsByVehicle: new Map() });
+
+  const driverData = useMemo((): DriverDatum[] => {
+    const stopState = signalStopStateRef.current;
+    const rawDelta = elapsedSeconds - stopState.lastElapsed;
+    // Ignore backward/large jumps (reset, tab refocus, speed change) so we don't
+    // accumulate bogus hold time.
+    const frameDelta =
+      rawDelta > 0 && rawDelta < MAX_ANIMATION_FRAME_SECONDS ? rawDelta : 0;
+    stopState.lastElapsed = elapsedSeconds;
+    const stoppedByVehicle = stopState.stoppedSecondsByVehicle;
+    const redSignals = signalLightData.filter((signal) => signal.phase === "red");
+
+    return world.vehicles
+      .map((vehicle): DriverDatum => {
+        const renderRoute = getRenderableRoute(vehicle, routeRenderBounds);
+        const isParked = isParkedVehicle(vehicle);
+        const routeStartAtSeconds = vehicle.routingPlan?.routeStartAtSeconds ?? 0;
+        const isMoving =
+          !isParked && vehicle.frozenAtSeconds === null && renderRoute.length > 1;
+
+        const sampleAt = (heldSeconds: number, offset: number): [number, number] =>
+          latLngToLngLat(
+            getVehiclePositionAtTime(
+              renderRoute,
+              elapsedSeconds - heldSeconds + offset,
+              vehicle.speedMps,
+              vehicle.frozenAtSeconds,
+              routeStartAtSeconds,
+            ).position,
+          );
+
+        if (!isMoving) {
+          // Not actively driving — drop any accumulated hold and show its plain spot.
+          stoppedByVehicle.delete(vehicle.id);
+          const basePosition = sampleAt(0, 0);
+          return {
+            id: vehicle.id,
+            position: isParked
+              ? parkedVehicleLayout.get(vehicle.id) ?? basePosition
+              : basePosition,
+            routeStatus: vehicle.routeStatus,
+            isParked,
+          };
+        }
+
+        let stoppedSeconds = stoppedByVehicle.get(vehicle.id) ?? 0;
+        const here = sampleAt(stoppedSeconds, 0);
+        const ahead = sampleAt(stoppedSeconds, SIGNAL_STOP_LOOKAHEAD_SECONDS);
+        const facingRed = redSignals.some(
+          (signal) =>
+            pointToSegmentDistance(signal.controlPosition, here, ahead) <=
+            SIGNAL_STOP_RADIUS_METERS,
+        );
+
+        if (facingRed) {
+          // Grow the hold so visual time doesn't advance while the light is red;
+          // the marker stays put and resumes (no jump) once it turns green.
+          stoppedSeconds += frameDelta;
+        }
+        stoppedByVehicle.set(vehicle.id, stoppedSeconds);
+
+        return {
+          id: vehicle.id,
+          position: sampleAt(stoppedSeconds, 0),
+          routeStatus: vehicle.routeStatus,
+          isParked: false,
+        };
+      })
+      // Vehicles idle/staged at the hub are hidden so they don't pile on top of
+      // the hub icon; a truck only appears once it's actually out on a route.
+      .filter((driver) => !driver.isParked);
+  }, [
+    elapsedSeconds,
+    parkedVehicleLayout,
+    routeRenderBounds,
+    signalLightData,
+    world.vehicles,
+  ]);
 
   const ambientVehicleData = useMemo(
     (): AmbientVehicleDatum[] =>

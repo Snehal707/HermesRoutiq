@@ -11,7 +11,11 @@ export async function GET(): Promise<NextResponse> {
     const { data, error } = await getSupabaseAdmin()
       .from("pickup_hubs")
       .select("id,name,lat,lng")
-      .order("name", { ascending: true });
+      // South first so it's the default selection: the suggested drop below is a
+      // South-hub route whose path has a clean one-block detour around the
+      // congestion zone (verified against OSRM), which makes the congestion demo
+      // show a real reroute.
+      .order("name", { ascending: false });
 
     if (error) {
       throw new Error(error.message);
@@ -25,9 +29,9 @@ export async function GET(): Promise<NextResponse> {
         lng: hub.lng,
       })),
       suggestedDestination: {
-        customerName: "Market Street Drop",
-        destinationLat: 37.7862,
-        destinationLng: -122.4008,
+        customerName: "Folsom Street Drop",
+        destinationLat: 37.789,
+        destinationLng: -122.4,
       },
     });
   } catch (error: unknown) {

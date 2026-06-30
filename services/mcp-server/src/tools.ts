@@ -1349,6 +1349,14 @@ export function registerActionTools(
         throw new Error(payload.error ?? "Congestion reroute request failed");
       }
       const result = toolOutputSchemas.apply_congestion_recovery_route.parse(payload);
+      // Hold completion until the rerouted vehicle actually reaches the customer,
+      // so the recovery report/banner isn't shown before the drop-off happens.
+      const incidentCreatedAt = await getIncidentCreatedAt(parsed.incidentId);
+      await waitForRecoveryVehicleArrival({
+        incidentCreatedAt,
+        vehicleIds: [result.vehicleId],
+        orderIds: result.orderIds,
+      });
       await writeActionAudit({
         toolName: "apply_congestion_recovery_route",
         input: asJson(parsed),

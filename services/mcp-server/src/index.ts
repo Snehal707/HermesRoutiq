@@ -161,11 +161,12 @@ async function executeHermesActionPlan(params: {
       incidentId: params.incidentId,
       selectedStrategy: params.selectedStrategy,
     }) as Record<string, unknown>;
-    // complete_delivery_recovery blocks until the replacement vehicle reaches the
-    // customer, which can exceed the SDK's default 60s call timeout. Give it the
-    // same headroom as the recover route's maxDuration.
+    // These tools block until the recovering vehicle reaches the customer, which
+    // can exceed the SDK's default 60s call timeout. Give them the same headroom
+    // as the recover route's maxDuration.
     const callOptions =
-      toolName === "complete_delivery_recovery"
+      toolName === "complete_delivery_recovery" ||
+      toolName === "apply_congestion_recovery_route"
         ? { timeout: 290_000, maxTotalTimeout: 290_000 }
         : undefined;
     const result = structuredContent(

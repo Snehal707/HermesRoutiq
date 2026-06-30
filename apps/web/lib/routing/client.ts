@@ -96,6 +96,9 @@ interface SolveDbOrdersWorldOptions {
   vehicleIds?: string[];
   orderIds?: string[];
   avoidAreas?: RoutingAvoidArea[];
+  // Override a vehicle's route start (e.g. its live position) so a reroute plans
+  // forward from where it actually is, not from the original hub stop.
+  startLocationByVehicleId?: Record<string, { lat: number; lng: number }>;
 }
 
 function getRoutingServiceUrl(): string {
@@ -331,14 +334,17 @@ function buildDbOrderRoutingRequest(
           location: lngLatToLocation(stop),
         }));
 
-    const start = stops[0]?.location ?? lngLatToLocation(vehicle.route[0] as LngLat);
+    const hub = stops[0]?.location ?? lngLatToLocation(vehicle.route[0] as LngLat);
+    // Reroute from the vehicle's live position when provided; always end back at
+    // the hub so the truck returns home after the final drop-off.
+    const start = options.startLocationByVehicleId?.[vehicle.id] ?? hub;
 
     return [{
       id: vehicle.driverId,
       name: vehicle.driverId,
       vehicle_id: vehicle.id,
       start_location: start,
-      end_location: start,
+      end_location: hub,
       capacity: 4,
       current_load: 0,
       time_window: {

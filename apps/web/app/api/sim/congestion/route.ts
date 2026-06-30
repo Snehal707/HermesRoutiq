@@ -53,6 +53,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       world,
       tick.elapsedSeconds,
       congestionVehicleId,
+      // The user explicitly selected this vehicle, so honor the click even if its
+      // route doesn't cross the fixed congestion zone.
+      { bypassExposureGate: true },
     );
     const incident = updatedWorld.incidents[updatedWorld.incidents.length - 1];
     const createdNewIncident =

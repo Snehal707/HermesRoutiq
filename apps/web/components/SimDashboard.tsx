@@ -869,7 +869,16 @@ export default function SimDashboard() {
     }
 
     setReasoningError(null);
-    await simulateBreakdown(selectedIncidentVehicleId);
+    try {
+      await simulateBreakdown(selectedIncidentVehicleId);
+    } catch (incidentError: unknown) {
+      setReasoningError(
+        incidentError instanceof Error
+          ? incidentError.message
+          : "Could not trigger a vehicle breakdown.",
+      );
+      return;
+    }
     triggerFastUiRefresh(POST_INCIDENT_BURST_MS);
   }, [
     selectedIncidentVehicleId,
@@ -883,7 +892,16 @@ export default function SimDashboard() {
     }
 
     setReasoningError(null);
-    await simulateCongestion(selectedIncidentVehicleId);
+    try {
+      await simulateCongestion(selectedIncidentVehicleId);
+    } catch (incidentError: unknown) {
+      setReasoningError(
+        incidentError instanceof Error
+          ? incidentError.message
+          : "Could not trigger traffic congestion.",
+      );
+      return;
+    }
     triggerFastUiRefresh(POST_INCIDENT_BURST_MS);
   }, [
     selectedIncidentVehicleId,
@@ -1204,7 +1222,7 @@ export default function SimDashboard() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
             {selectedTab === "operations" ? (
               <div className="grid h-full gap-3">
                 <div className="grid min-h-0 gap-3 content-start">
@@ -1530,7 +1548,7 @@ export default function SimDashboard() {
             ) : null}
 
             {selectedTab === "payments" ? (
-              <div className="h-full overflow-y-auto overflow-x-hidden">
+              <div className="no-scrollbar h-full overflow-y-auto overflow-x-hidden">
                 <StripeTransactionPanel transactions={stripeTransactions} />
               </div>
             ) : null}
@@ -1556,26 +1574,74 @@ export default function SimDashboard() {
                 </section>
 
                 <section className="grid gap-3 content-start">
-                  <article className="rounded-3xl border border-white/8 bg-white/[0.03] p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300">
-                      Hermes Learning Loop
-                    </p>
-                    <p className="mt-3 text-sm text-slate-300">
+                  <article className="overflow-hidden rounded-3xl border border-sky-400/15 bg-gradient-to-br from-sky-500/[0.06] to-white/[0.015] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-sky-400/30 bg-sky-500/10 text-sky-300">
+                          <svg
+                            className="h-3.5 w-3.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                            <path d="M21 3v5h-5" />
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                            <path d="M3 21v-5h5" />
+                          </svg>
+                        </span>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+                          Hermes Learning Loop
+                        </p>
+                      </div>
+                      {recoveryReport?.reusedSkill?.reused ? (
+                        <span className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+                          Reused
+                        </span>
+                      ) : recoveryReport?.skillName ? (
+                        <span className="rounded-full border border-sky-400/25 bg-sky-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-sky-300">
+                          New skill
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-3 text-sm leading-relaxed text-slate-300">
                       {recoveryReport?.reusedSkill?.reused
                         ? "Hermes reused an existing recovery skill and adapted it to this incident's current numbers."
                         : recoveryReport?.skillName
                           ? "Hermes created a new recovery skill from this run so the next incident can start faster."
                           : "The learned skill record will appear here after recovery completes."}
                     </p>
-                    <p className="mt-3 font-mono text-sm text-slate-200">
-                      {recoveryReport?.reusedSkill?.reused
-                        ? `${recoveryReport.reusedSkill.skillName}${
-                            recoveryReport.reusedSkill.learnedFromIncidentId
-                              ? ` (learned from incident ${recoveryReport.reusedSkill.learnedFromIncidentId.slice(0, 8)})`
-                              : ""
-                          }`
-                        : recoveryReport?.skillName ?? "Pending audit record"}
-                    </p>
+
+                    {recoveryReport?.reusedSkill?.reused || recoveryReport?.skillName ? (
+                      <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/25 px-3 py-2.5">
+                        <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                          Skill
+                        </p>
+                        <code className="mt-1 block font-mono text-[13px] font-medium text-emerald-200">
+                          {recoveryReport?.reusedSkill?.reused
+                            ? recoveryReport.reusedSkill.skillName
+                            : recoveryReport?.skillName}
+                        </code>
+                        {recoveryReport?.reusedSkill?.reused &&
+                        recoveryReport.reusedSkill.learnedFromIncidentId ? (
+                          <p className="mt-1.5 text-[11px] text-slate-500">
+                            Learned from incident{" "}
+                            <span className="font-mono text-slate-400">
+                              {recoveryReport.reusedSkill.learnedFromIncidentId.slice(0, 8)}
+                            </span>
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 font-mono text-sm text-slate-400">
+                        Pending audit record
+                      </p>
+                    )}
                   </article>
                 </section>
               </div>

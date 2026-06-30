@@ -82,18 +82,21 @@ async function applyScheduledBreakdown(
 ): Promise<{ applied: true; incidentId: string } | { applied: false; reason: string }> {
   const { world, tick } = await loadPersistedSimulation();
 
-  if (
-    world.incidents.some(
-      (incident) =>
-        incident.type === "vehicle_breakdown" &&
-        incident.vehicleId === world.breakdownVehicleId,
-    )
-  ) {
-    return { applied: false, reason: "Breakdown already active" };
+  // Don't stack a scheduled incident on top of an active one (e.g. while a
+  // manual breakdown is still being recovered). world.incidents already
+  // excludes resolved incidents, so any entry here is live.
+  if (world.incidents.length > 0) {
+    return { applied: false, reason: "Another incident is already active" };
   }
 
+  const beforeIncidentIds = new Set(world.incidents.map((incident) => incident.id));
   const updatedWorld = triggerBreakdown(world, Math.max(tick.elapsedSeconds, simTimeSeconds));
-  const incident = updatedWorld.incidents.at(-1);
+  // Only persist a genuinely new incident. triggerBreakdown returns the world
+  // unchanged when there's no dispatchable target, in which case .at(-1) would
+  // be a pre-existing incident and re-inserting it violates incidents_pkey.
+  const incident = updatedWorld.incidents.find(
+    (candidate) => !beforeIncidentIds.has(candidate.id),
+  );
 
   if (!incident || incident.type !== "vehicle_breakdown") {
     return { applied: false, reason: "No dispatchable breakdown target was available" };
@@ -125,6 +128,12 @@ async function applyScheduledCongestion(
   simTimeSeconds: number,
 ): Promise<{ applied: true; incidentId: string } | { applied: false; reason: string }> {
   const { world, tick } = await loadPersistedSimulation();
+
+  // Don't stack a scheduled incident on top of an active one.
+  if (world.incidents.length > 0) {
+    return { applied: false, reason: "Another incident is already active" };
+  }
+
   const congestionVehicleId = findCongestionVehicleId(world);
 
   if (!congestionVehicleId) {
@@ -135,8 +144,12 @@ async function applyScheduledCongestion(
     return { applied: false, reason: "Congestion is already active for the affected vehicle" };
   }
 
+  const beforeIncidentIds = new Set(world.incidents.map((incident) => incident.id));
   const updatedWorld = triggerCongestion(world, Math.max(tick.elapsedSeconds, simTimeSeconds));
-  const incident = updatedWorld.incidents.at(-1);
+  // Only persist a genuinely new incident (see applyScheduledBreakdown).
+  const incident = updatedWorld.incidents.find(
+    (candidate) => !beforeIncidentIds.has(candidate.id),
+  );
 
   if (!incident || incident.type !== "congestion") {
     return { applied: false, reason: "Congestion incident could not be created" };

@@ -27,8 +27,8 @@
   "traffic_zones": [
     {
       "id": "soma-core-gridlock",
-      "center": { "lat": 37.7840, "lng": -122.4003 },
-      "radius_meters": 240.0,
+      "center": { "lat": 37.78502, "lng": -122.40048 },
+      "radius_meters": 70.0,
       "severity": "high",
       "slowdown_multiplier": 0.35
     },

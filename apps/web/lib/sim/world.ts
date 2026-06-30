@@ -13,12 +13,16 @@ import type {
 
 export const DEFAULT_SIMULATION_SEED = 42;
 export const BREAKDOWN_VEHICLE_ID = "vehicle-3";
-const DEFAULT_SPEED_MPS = 8;
+const DEFAULT_SPEED_MPS = 10;
+// A small congestion patch on the South-hub → Folsom Street Drop corridor, on a
+// segment that OSRM can cleanly detour around one block (verified: avoiding it
+// costs ~0 extra distance). Aligned with the visible "soma-core-gridlock" zone
+// (center 37.78502, -122.40048).
 export const CONGESTION_AREA = {
-  minLat: 37.782,
-  maxLat: 37.7895,
-  minLng: -122.405,
-  maxLng: -122.397,
+  minLat: 37.78457,
+  maxLat: 37.78547,
+  minLng: -122.40098,
+  maxLng: -122.39998,
 };
 const MIN_CONGESTION_EXPOSURE_METERS = 60;
 
@@ -493,6 +497,7 @@ export function triggerCongestion(
   world: SimulationWorld,
   elapsedSeconds: number,
   vehicleId?: string,
+  options?: { bypassExposureGate?: boolean },
 ): SimulationWorld {
   const congestionVehicleId =
     vehicleId ??
@@ -515,9 +520,13 @@ export function triggerCongestion(
   if (hasActiveCongestionForOrders(world, orderIds)) {
     return world;
   }
+  // The exposure gate keeps auto-picked congestion realistic, but a user who
+  // explicitly selects a vehicle and clicks "Trigger Congestion" should always
+  // get an incident even if their route doesn't happen to cross the fixed zone.
   if (
+    !options?.bypassExposureGate &&
     getRemainingCongestionExposureMeters(target, elapsedSeconds) <
-    MIN_CONGESTION_EXPOSURE_METERS
+      MIN_CONGESTION_EXPOSURE_METERS
   ) {
     return world;
   }

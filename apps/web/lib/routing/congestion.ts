@@ -1,8 +1,9 @@
 import "server-only";
 
 import type { LngLat } from "../sim/types";
-import type { SolvedOrderRoute, SolvedOrdersWorld } from "./client";
+import type { SolvedOrdersWorld } from "./client";
 import { solveDbOrdersWorld } from "./client";
+import { getVehiclePositionAtTime } from "../sim/movement";
 import {
   loadTickFromRedis,
   loadWorldFromPostgres,
@@ -40,60 +41,6 @@ function haversineMeters(a: LngLat, b: LngLat): number {
     sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
 
   return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-function trimRouteToLastOrderStop(route: SolvedOrderRoute): SolvedOrderRoute {
-  const lastOrderStopIndex = [...route.routingPlan.orderedStops]
-    .reverse()
-    .findIndex((stop) => stop.kind === "order");
-  if (lastOrderStopIndex === -1) {
-    return route;
-  }
-
-  const absoluteLastOrderIndex =
-    route.routingPlan.orderedStops.length - 1 - lastOrderStopIndex;
-  const lastOrderStop = route.routingPlan.orderedStops[absoluteLastOrderIndex]!;
-  const lastOrderPoint: LngLat = [
-    lastOrderStop.location.lng,
-    lastOrderStop.location.lat,
-  ];
-
-  let bestIndex = route.route.length - 1;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (let index = 0; index < route.route.length; index += 1) {
-    const point = route.route[index]!;
-    const distance = haversineMeters(point, lastOrderPoint);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = index;
-    }
-  }
-
-  const trimmedGeometry = route.route.slice(0, bestIndex + 1);
-  const trimmedStops = route.routingPlan.orderedStops.slice(
-    0,
-    absoluteLastOrderIndex + 1,
-  );
-  const trimmedDistance = trimmedGeometry.reduce((total, point, index) => {
-    if (index === 0) {
-      return total;
-    }
-    return total + haversineMeters(trimmedGeometry[index - 1]!, point);
-  }, 0);
-
-  return {
-    ...route,
-    route: trimmedGeometry,
-    routingPlan: {
-      ...route.routingPlan,
-      orderedStops: trimmedStops,
-      assignedOrderIds: trimmedStops
-        .map((stop) => stop.orderId)
-        .filter((orderId): orderId is string => orderId !== null),
-      totalDistanceMeters: trimmedDistance,
-      totalDurationSeconds: lastOrderStop.etaSeconds,
-    },
-  };
 }
 
 export async function executeCongestionReroute(params: {
@@ -164,9 +111,23 @@ export async function executeCongestionReroute(params: {
     tick.elapsedSeconds,
   );
   const beforeIntersectsCongestion = beforeCongestionMeters > 0;
+
+  // Reroute forward from the vehicle's live position (not the original hub stop)
+  // so the new path visibly diverges from where it is now, then returns to hub.
+  const currentPosition = getVehiclePositionAtTime(
+    affectedVehicle.route,
+    tick.elapsedSeconds,
+    affectedVehicle.speedMps,
+    affectedVehicle.frozenAtSeconds,
+    affectedVehicle.routingPlan?.routeStartAtSeconds ?? 0,
+  ).position;
+
   const solved = await solveDbOrdersWorld(world, "cuopt-osrm", {
     vehicleIds: [affectedVehicleId],
     orderIds,
+    startLocationByVehicleId: {
+      [affectedVehicleId]: { lat: currentPosition.lat, lng: currentPosition.lng },
+    },
     avoidAreas: [
       {
         min_lat: CONGESTION_AREA.minLat,
@@ -186,15 +147,9 @@ export async function executeCongestionReroute(params: {
     );
   }
 
-  const trimmedSolvedRoute = trimRouteToLastOrderStop(solvedRoute);
-  const solvedForPersistence: SolvedOrdersWorld = {
-    ...solved,
-    routes: solved.routes.map((route) =>
-      route.vehicleId === affectedVehicleId ? trimmedSolvedRoute : route,
-    ),
-  };
+  const solvedForPersistence: SolvedOrdersWorld = solved;
 
-  const afterRoute = trimmedSolvedRoute.route;
+  const afterRoute = solvedRoute.route;
   const afterCongestionMeters = afterRoute.reduce((total, point, index) => {
     if (index === 0) {
       return total;
@@ -212,18 +167,12 @@ export async function executeCongestionReroute(params: {
     return inside ? total + haversineMeters(previous, point) : total;
   }, 0);
   const afterIntersectsCongestion = afterCongestionMeters > 0;
-  if (beforeCongestionMeters > 0 && afterCongestionMeters >= beforeCongestionMeters) {
-    throw new Error(
-      "Routing service re-solved the vehicle but did not reduce congestion exposure on the remaining route.",
-    );
-  }
-
+  // Note: we no longer hard-fail when exposure isn't reduced or the geometry is
+  // unchanged. The routing service now scores by effective travel time, so when
+  // no clean parallel exists it legitimately keeps the vehicle on the fastest
+  // path straight through a small congestion patch. That's a valid recovery
+  // outcome ("evaluated alternatives, none faster"), not an error.
   const routeChanged = routesDiffer(beforeRoute, afterRoute);
-  if (beforeIntersectsCongestion && !routeChanged) {
-    throw new Error(
-      "Routing service returned the same geometry for a congested route, so congestion avoidance could not be confirmed.",
-    );
-  }
 
   const invalidAssignment = solvedForPersistence.assignments.find(
     (assignment) =>
