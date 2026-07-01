@@ -6,50 +6,62 @@ The system combines a customer-facing checkout flow, an operator-facing dispatch
 ## System overview
 
 ```mermaid
-flowchart TB
-  customer["Customer"]
-  operator["Operator / Judge"]
+flowchart TD
+  customer(["Customer"])
+  operator(["Operator / Judge"])
 
-  subgraph host["HOST · Node + Python services"]
-    web["Next.js dashboard + checkout + API routes"]
-    bridge["Hermes Bridge · FastAPI<br/>OpenAI-compatible /v1/chat/completions"]
-    mcp["MCP Server · Node/TS · Streamable HTTP<br/>27 tools · role-scoped · spend policy · audit"]
-    routing["Routing Service · FastAPI<br/>cuOpt + OSRM"]
-    simulator["Ambient Simulator · FastAPI"]
-  end
+  web["Next.js web app<br/>dashboard · checkout · API routes"]
+  bridge["Hermes Bridge · FastAPI<br/>OpenAI-compatible /v1/chat/completions"]
+  simulator["Ambient Simulator · FastAPI"]
 
-  subgraph runtime["NemoClaw / OpenShell sandbox · Docker in WSL (hermes-runway)"]
+  subgraph runtime["NemoClaw / OpenShell sandbox — Docker in WSL · hermes-runway"]
+    direction TB
     hermes["Hermes Agent · NemoHermes"]
-    skills["Skills (sandbox-side): operator + learned recovery"]
-    mcpcfg["Hermes mcp_servers · 5 role-scoped connections"]
+    skills["Skills — sandbox-side<br/>operator + learned recovery"]
+    mcpcfg["Hermes mcp_servers<br/>5 role-scoped connections"]
+    hermes --> skills
+    hermes --> mcpcfg
   end
 
   model["Nemotron 3 Ultra<br/>Nous Portal · OpenRouter fallback"]
 
-  subgraph data["STATE + PAYMENTS"]
-    postgres["Supabase Postgres"]
-    redis["Redis"]
-    stripe["Stripe · Checkout / Connect / Projects"]
+  subgraph core["Operations core — host"]
+    direction TB
+    mcp["MCP Server · Node/TS · Streamable HTTP<br/>27 tools · role-scoped · spend policy · audit"]
+    routing["Routing Service · FastAPI<br/>cuOpt + OSRM"]
+    mcp --> routing
   end
 
-  customer --> stripe
-  operator --> web
-  stripe -->|webhooks| web
+  subgraph data["State + payments"]
+    direction LR
+    postgres[("Supabase<br/>Postgres")]
+    redis[("Redis")]
+    stripe["Stripe<br/>Checkout · Connect · Projects"]
+  end
 
+  customer --> web
+  operator --> web
+  web --> simulator
   web -->|trigger reasoning| bridge
   bridge -->|docker exec / WSL| hermes
-  hermes --> skills
   hermes -->|reasons on| model
-  hermes --> mcpcfg
-  mcpcfg -->|"HTTP + x-routiq-role (egress gated by OpenShell)"| mcp
-
-  web --> simulator
-  web --> postgres
-
-  mcp --> routing
+  mcpcfg -->|"x-routiq-role · egress gated by OpenShell"| mcp
+  web <-. "checkout / webhooks" .-> stripe
   mcp --> postgres
   mcp --> redis
   mcp --> stripe
+
+  classDef user fill:#0f172a,stroke:#64748b,color:#f8fafc;
+  classDef app fill:#0c4a6e,stroke:#38bdf8,color:#e0f2fe;
+  classDef agent fill:#3b0764,stroke:#c084fc,color:#f5e8ff;
+  classDef model fill:#14532d,stroke:#4ade80,color:#dcfce7;
+  classDef store fill:#422006,stroke:#f59e0b,color:#fef3c7;
+
+  class customer,operator user;
+  class web,bridge,simulator,mcp,routing app;
+  class hermes,skills,mcpcfg agent;
+  class model model;
+  class postgres,redis,stripe store;
 ```
 
 ## Core components

@@ -71,53 +71,63 @@ The strongest demo path in this repo is the **vehicle breakdown scenario**:
 ## Architecture
 
 ```mermaid
-flowchart TB
-  customer["Customer"]
-  operator["Operator / Judge"]
+flowchart TD
+  customer(["Customer"])
+  operator(["Operator / Judge"])
 
-  subgraph host["HOST · Node + Python services"]
-    web["Next.js web app<br/>dashboard · checkout · API routes"]
-    bridge["Hermes Bridge · FastAPI<br/>OpenAI-compatible /v1/chat/completions"]
-    mcp["MCP Server · Node/TS · Streamable HTTP<br/>27 tools · role-scoped · spend policy · audit"]
-    route["Routing Service · FastAPI<br/>NVIDIA cuOpt + OSRM"]
-    sim["Ambient Simulator · FastAPI"]
-  end
+  web["Next.js web app<br/>dashboard · checkout · API routes"]
+  bridge["Hermes Bridge · FastAPI<br/>OpenAI-compatible /v1/chat/completions"]
+  sim["Ambient Simulator · FastAPI"]
 
-  subgraph sandbox["NemoClaw / OpenShell sandbox · Docker in WSL (hermes-runway)"]
+  subgraph sandbox["NemoClaw / OpenShell sandbox — Docker in WSL · hermes-runway"]
+    direction TB
     hermes["Hermes Agent · NemoHermes"]
-    skills["Skills (sandbox-side)<br/>operator + learned recovery"]
+    skills["Skills — sandbox-side<br/>operator + learned recovery"]
     mcpcfg["Hermes mcp_servers<br/>5 role-scoped connections"]
+    hermes --> skills
+    hermes --> mcpcfg
   end
 
   nemotron["Nemotron 3 Ultra<br/>Nous Portal · OpenRouter fallback"]
 
-  subgraph infra["STATE + PAYMENTS"]
-    supabase["Supabase Postgres"]
-    redis["Redis"]
-    stripe["Stripe · Checkout / Connect / Projects"]
+  subgraph core["Operations core — host"]
+    direction TB
+    mcp["MCP Server · Node/TS · Streamable HTTP<br/>27 tools · role-scoped · spend policy · audit"]
+    routing["Routing Service · FastAPI<br/>NVIDIA cuOpt + OSRM"]
+    mcp --> routing
   end
 
-  customer --> stripe
-  operator --> web
-  stripe -->|webhooks| web
+  subgraph data["State + payments"]
+    direction LR
+    pg[("Supabase<br/>Postgres")]
+    redis[("Redis")]
+    stripe["Stripe<br/>Checkout · Connect · Projects"]
+  end
 
+  customer --> web
+  operator --> web
+  web --> sim
   web -->|trigger reasoning| bridge
   bridge -->|docker exec / WSL| hermes
-  hermes --> skills
   hermes -->|reasons on| nemotron
-  hermes --> mcpcfg
-  mcpcfg -->|"HTTP + x-routiq-role<br/>egress gated by OpenShell"| mcp
-
-  web --> sim
-  web --> supabase
-
-  mcp --> route
-  mcp --> supabase
+  mcpcfg -->|"x-routiq-role · egress gated by OpenShell"| mcp
+  web <-. "checkout / webhooks" .-> stripe
+  mcp --> pg
   mcp --> redis
   mcp --> stripe
-```
 
-The agent is **inside** the NemoClaw/OpenShell sandbox and reaches the tool layer *outbound* through Hermes's own `mcp_servers` config — one connection per role (`monitoring`, `routing`, `finance`, `operations`, `payment`), each sending a distinct `x-routiq-role` header. OpenShell enforces network egress; the MCP server registers only that role's tool subset per session and enforces the spend/role policy.
+  classDef user fill:#0f172a,stroke:#64748b,color:#f8fafc;
+  classDef app fill:#0c4a6e,stroke:#38bdf8,color:#e0f2fe;
+  classDef agent fill:#3b0764,stroke:#c084fc,color:#f5e8ff;
+  classDef model fill:#14532d,stroke:#4ade80,color:#dcfce7;
+  classDef store fill:#422006,stroke:#f59e0b,color:#fef3c7;
+
+  class customer,operator user;
+  class web,bridge,sim,mcp,routing app;
+  class hermes,skills,mcpcfg agent;
+  class nemotron model;
+  class pg,redis,stripe store;
+```
 
 ## How it works
 
