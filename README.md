@@ -1,70 +1,231 @@
-# HermesRoutiq
+# HermesRoutiq - Autonomous Delivery Operations Company
 
-Autonomous delivery operations that think in routes, risk, and revenue.
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python-green?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-Nous%20Research-red)](https://github.com/NousResearch/hermes-agent)
+[![Stripe](https://img.shields.io/badge/Stripe-Checkout%20%2B%20Connect-635BFF?logo=stripe)](https://stripe.com/)
+[![NVIDIA cuOpt](https://img.shields.io/badge/NVIDIA-cuOpt-76B900)](https://build.nvidia.com/nvidia/cuopt)
 
-Built for the **Hermes Agent Accelerated Business Hackathon** (Nous Research · NVIDIA · Stripe). An AI agent that earns from customers, spends to operate, coordinates real workflows, responds to disruptions, makes financially intelligent decisions, runs inside strict permissions, and learns reusable recovery procedures.
+HermesRoutiq is a prototype **autonomous delivery company** for last-mile operations.
+It shows how a Hermes agent can monitor a live fleet, react to a vehicle failure, evaluate financial risk, call routing and payment tools, and drive recovery in real time.
 
-See `docs/` for ARCHITECTURE, IMPLEMENTATION_PLAN, SECURITY_POLICY, DEMO_SCRIPT.
+Built for the **Hermes Agent Accelerated Business Hackathon** by Nous Research, NVIDIA, and Stripe.
 
-Local routing note: Hermes routing should run on `127.0.0.1:8001` by default in this repo because `8000` may already be occupied by Windows services on some machines.
+## The problem
 
-## What's real vs simulated
-**Real software:** Stripe Checkout/webhooks/Connect/Projects, Hermes Agent, Nemotron 3 Ultra reasoning, NemoClaw enforcement, cuOpt optimisation, DB/Redis/WS, ledger, skill creation.
-**Simulated (deterministic, seeded):** drivers, vehicles, GPS, traffic, packages, the breakdown.
+Last-mile delivery breaks down fast when a driver or vehicle fails mid-route:
 
-## Decided architecture
-- Next.js web + **separate Node core** (simulator + MCP server + WS hub).
-- Python FastAPI routing service; **cuOpt abstracted behind a provider interface** (managed endpoint or self-hosted NIM, switched by `CUOPT_API_URL`).
-- Hermes runs inside the **full NemoClaw runtime** via the `nemohermes` quickstart.
-- Hermes reaches **Nemotron 3 Ultra through Nous Portal** (native Hermes provider, slug `nvidia/nemotron-3-ultra`, billed against existing Nous API credits) with **OpenRouter as a one-line fallback** if Nous Portal hiccups mid-demo.
+- an active order is suddenly at risk
+- customer refunds and churn become likely
+- dispatch teams need a replacement decision immediately
+- rerouting, payouts, and audit trails have to happen under pressure
 
----
+HermesRoutiq turns that failure into an autonomous operations workflow.
 
-## Major technical risks (and mitigations)
+## What HermesRoutiq does
 
-1. **Stripe Projects is the newest, least-proven surface.** Phase 10 depends on it and judges want to see "the agent provisions its own SaaS." → Verify the `npx skills add ... stripe-projects` install and a single provisioning call *first* (Phase 0). Keep the Projects op narrow (one observability/queue upgrade). Have a recorded fallback clip.
+- Runs a live delivery control room on a 2.5D city map
+- Tracks active deliveries, incidents, policy checks, and payments
+- Lets Hermes reason through breakdown recovery in real time
+- Uses routing services to assign or reroute delivery work
+- Uses Stripe to handle checkout and driver payout flows
+- Persists operational state, decisions, and financial records for auditability
 
-2. **~~Nemotron model ID / availability~~ — resolved.** Hermes reaches Nemotron 3 Ultra natively through the Nous Portal provider (`hermes model` → Nous Portal → `nvidia/nemotron-3-ultra`), using existing Nous API credits — no new account, no separate SDK, no guessed slug. OpenRouter is configured as a same-model fallback in case Nous Portal rate-limits or has an outage during judging; switching providers is a `hermes model` config change. Residual risk is provider uptime on the day, covered by the fallback.
+## Demo focus
 
-3. **cuOpt deployment ambiguity (managed vs NIM/GPU).** NIM needs a GPU; managed endpoint has rate/availability limits. → Provider interface; `MockRoutingProvider` always available as deterministic fallback so the demo never hard-blocks on cuOpt.
+The strongest demo path in this repo is the **vehicle breakdown scenario**:
 
-4. **NemoClaw end-to-end with Hermes is a moving target.** Full runtime is more setup than a policy shim. → Stand it up early (don't defer to Phase 8 blind); if the quickstart fights back, the in-Node policy engine still enforces business invariants, so security isn't lost while NemoClaw is brought up.
+1. A customer delivery is created and released onto the map
+2. A vehicle breaks down while carrying active work
+3. Hermes detects the incident context and reviews available options
+4. Routing and policy tools are called to recover the operation
+5. The UI shows the live recovery path, reasoning feed, and outcome
 
-5. **Webhook idempotency & race conditions.** Duplicate Stripe deliveries or out-of-order events can double-create orders/payouts. → Idempotency keys on every Stripe write; dedupe on event id; "order appears only after verified webhook" is a hard rule.
+## Tech stack
 
-6. **Determinism leaks.** Any stray `Math.random()` breaks reproducibility and makes the financial demo unauditable. → Single seeded PRNG instance threaded through the simulator; lint rule / review gate against direct randomness.
+| Layer | Technologies |
+|---|---|
+| **Agent** | Hermes Agent, NemoHermes / NemoClaw sandbox, Nemotron 3 Ultra |
+| **Frontend** | Next.js 14, React 18, Tailwind CSS, MapLibre GL, deck.gl |
+| **Operations Core** | TypeScript, Node.js, Zod, MCP server |
+| **Routing** | FastAPI, NVIDIA cuOpt, OSRM |
+| **Simulation** | Python ambient traffic simulator, seeded delivery world |
+| **Data** | Supabase Postgres, Redis |
+| **Payments** | Stripe Checkout, Stripe webhooks, Stripe Connect, Stripe Projects |
 
-7. **Agent executing unstructured text.** A reasoning model emitting prose that gets parsed into actions is the core safety failure. → Structured JSON only; Zod-validate model output before any action; unstructured text never executes.
+## Architecture
 
-8. **WebSocket/sim loop in serverless.** Long-lived loops die in Next.js request lifecycles. → That's why sim/MCP/WS live in the separate Node core, not API routes.
+```mermaid
+flowchart TB
+  subgraph users["ENTRYPOINTS"]
+    customer["Customer Checkout"]
+    operator["Operations Dashboard"]
+  end
 
-9. **Scope creep into a "real logistics platform."** → Build exactly one polished breakdown scenario. 3D vehicle models last.
+  subgraph web["WEB APP"]
+    next["Next.js Dashboard + API Routes"]
+  end
 
----
+  subgraph core["OPERATIONS CORE"]
+    mcp["MCP Server"]
+    bridge["Hermes Bridge"]
+    sim["Ambient Simulator"]
+    route["Routing Service"]
+  end
 
-## FIRST IMPLEMENTATION MILESTONE (Phase 2)
+  subgraph agent["AGENT LAYER"]
+    hermes["Hermes Agent"]
+    sandbox["NemoHermes / NemoClaw"]
+    model["Nemotron 3 Ultra"]
+  end
 
-**Goal:** the 2.5D city map + deterministic delivery simulation with moving drivers, active orders, animated routes, and a working vehicle-breakdown button. No DB, no Hermes, no Stripe yet — in-memory seeded state only.
+  subgraph infra["DATA + PAYMENTS"]
+    supabase["Supabase Postgres"]
+    redis["Redis"]
+    stripe["Stripe Checkout / Connect / Projects"]
+  end
 
-**Files to create/change (state these before coding each step):**
-- `apps/web/` — Next.js + TS + Tailwind scaffold.
-- `apps/web/lib/prng.ts` — single seeded PRNG (no direct Math.random anywhere).
-- `apps/web/lib/sim/world.ts` — seeded world: 8 drivers, 8 vehicles, 2 hubs, 10 customer locations, 4 active orders, 3 of them on the vehicle that will break down.
-- `apps/web/lib/sim/clock.ts` — tick loop with start/pause/reset/speed.
-- `apps/web/lib/sim/movement.ts` — deterministic interpolation of vehicles along route polylines.
-- `apps/web/components/CityMap.tsx` — MapLibre GL (building extrusion) + deck.gl `TripsLayer` overlay.
-- `apps/web/components/SimControls.tsx` — start / pause / reset / speed + **Simulate Breakdown**.
-- `apps/web/components/Legend.tsx` — colour states (green/yellow/red/blue/grey).
-- `packages/shared/types/` — Driver, Vehicle, Order, Incident, route/state enums (shared with later services).
+  customer --> next
+  operator --> next
 
-**Acceptance for this milestone:**
-1. City map renders with 3D building extrusion.
-2. Eight drivers appear and move along predefined routes.
-3. Pickup hubs and customer destinations render.
-4. Start/pause/reset/speed all work.
-5. Breakdown button stops the target vehicle and turns it (and its route) red.
-6. Same seed ⇒ identical movement every reload.
+  next --> mcp
+  next --> sim
+  next --> stripe
+  next --> supabase
 
-**Explicitly NOT in this milestone:** Postgres, Redis, Stripe, MCP, Hermes, Nemotron, NemoClaw, cuOpt, payouts, real routing. Use `MockRoutingProvider`-style precomputed polylines.
+  mcp --> bridge
+  mcp --> route
+  mcp --> supabase
+  mcp --> redis
+  mcp --> stripe
 
-After Phase 2 passes its gate, proceed to Phase 3 (Postgres + Redis).
+  bridge --> sandbox
+  sandbox --> hermes
+  hermes --> model
+```
+
+## How it works
+
+### 1. Delivery intake
+
+The web app creates a customer payment flow through Stripe Checkout.
+Once payment is confirmed, the order becomes operationally eligible for dispatch.
+
+### 2. Dispatch and routing
+
+The operations layer persists the order, selects an available vehicle, and requests route optimization through the routing service.
+cuOpt handles assignment logic and OSRM supplies road-following geometry for the map.
+
+### 3. Live simulation
+
+The map shows active vehicles, route overlays, traffic zones, and signal context while the ambient simulator keeps the city visually alive.
+
+### 4. Incident response
+
+When a vehicle breakdown is triggered, Hermes receives the incident context, reviews affected deliveries, checks available recovery options, and requests the tools it needs.
+
+### 5. Recovery execution
+
+The system can reassign work, replan routes, run policy checks, record decisions, and process payout-related operations while keeping the operator UI in sync.
+
+## Why this matters
+
+HermesRoutiq is not just a route viewer.
+It is a prototype for an autonomous company where an agent helps run dispatch, recovery, and business operations together:
+
+- **routing intelligence** for assignment and recovery
+- **financial awareness** around payouts, refunds, and margin
+- **policy enforcement** before risky actions execute
+- **live visibility** for operators and judges watching the system work
+
+## Project structure
+
+```text
+HermesRoutiq/
+|-- apps/web/               # Next.js dashboard, API routes, checkout UI
+|-- packages/shared/        # Shared types across frontend and services
+|-- services/mcp-server/    # Hermes tool server and reasoning orchestration
+|-- services/routing/       # FastAPI routing service for cuOpt + OSRM
+|-- services/simulator/     # Ambient traffic and signal simulation
+|-- services/hermes-bridge/ # Bridge into local Hermes runtime
+|-- supabase/               # Migrations and seed data
+|-- docs/                   # Architecture, security, setup, demo notes
+`-- ops/nemoclaw/           # NemoClaw / sandbox helper scripts
+```
+
+## Quick start
+
+### Prerequisites
+
+- Node.js 20+
+- Python 3.10+
+- Supabase project
+- Redis
+- Stripe test keys
+- Hermes runtime / NemoHermes setup for full agent flow
+
+### Local development
+
+1. Clone the repo
+2. Install workspace dependencies
+3. Copy environment files and configure keys
+4. Run database setup
+5. Start the routing service
+6. Start the simulator
+7. Start the MCP server
+8. Start the web app
+
+Useful commands:
+
+```bash
+npm install
+npm run db:setup
+npm run mcp:dev
+npm run dev
+```
+
+Routing service:
+
+```bash
+cd services/routing
+python -m uvicorn app.main:app --reload --port 8001
+```
+
+Ambient simulator:
+
+```bash
+cd services/simulator
+python -m uvicorn app.main:app --reload --port 8010
+```
+
+For the full Hermes sandbox path, see [docs/NEMOCLAW_SETUP.md](docs/NEMOCLAW_SETUP.md).
+
+## Documentation
+
+- [Architecture](ARCHITECTURE.md)
+- [Implementation plan](IMPLEMENTATION_PLAN.md)
+- [Security policy](docs/SECURITY_POLICY.md)
+- [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
+- [Demo script](docs/DEMO_SCRIPT.md)
+
+## Hackathon framing
+
+HermesRoutiq explores a simple question:
+
+**Can Hermes run part of a delivery company end to end when operations go wrong?**
+
+This repo answers that question through a live breakdown-and-recovery demo that combines:
+
+- agent reasoning
+- routing tools
+- policy constraints
+- payments infrastructure
+- operational visibility
+
+## Credits
+
+- **Nous Research** - Hermes Agent
+- **NVIDIA** - Nemotron 3 Ultra, cuOpt, NemoClaw / NemoHermes context
+- **Stripe** - Checkout, Connect, Projects
+- **Snehal707** - HermesRoutiq

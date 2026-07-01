@@ -11,20 +11,26 @@ out/
 # Build / cache
 dist/
 *.tsbuildinfo
+.npm-cache-node20/
 
 # Logs
 npm-debug.log*
 *.log
+debug.log
 
 # OS / IDE
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+.claude/
+.cursor/
+/.cursorignore
 
 # Test
 coverage/
 
+.projects/
 .projects/cache
 .projects/vault
 .projects/state.test.json
@@ -46,3 +52,10 @@ __pycache__/
 # Temp screenshots / QA artifacts
 /tmp-*.png
 /.tmp-*.png
+/.tmp/
+/.tmp-visual-qa/
+/build-route-body.js
+/debug-intake.json
+/files (2)/
+/files (3)/
+/CLAUDE.md
