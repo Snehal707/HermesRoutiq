@@ -14,6 +14,8 @@ Built for the **Hermes Agent Accelerated Business Hackathon** by Nous Research, 
 
 ## Demo
 
+[![Watch the HermesRoutiq demo on YouTube](https://img.youtube.com/vi/QxU-MQ4tS48/maxresdefault.jpg)](https://youtu.be/QxU-MQ4tS48)
+
 **Watch the full walkthrough: [youtu.be/QxU-MQ4tS48](https://youtu.be/QxU-MQ4tS48)**
 
 The agent recovers a live vehicle breakdown end to end — reading state, comparing options, paying a replacement driver through Stripe Connect, and banking the recovery as a reusable skill.
