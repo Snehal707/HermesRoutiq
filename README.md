@@ -88,7 +88,7 @@ flowchart TD
     hermes --> mcpcfg
   end
 
-  nemotron["Nemotron 3 Ultra<br/>Nous Portal · OpenRouter fallback"]
+  nemotron["Nemotron 3 Ultra<br/>via OpenRouter (compatible-endpoint)"]
 
   subgraph core["Operations core — host"]
     direction TB
