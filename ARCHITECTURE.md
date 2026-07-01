@@ -113,7 +113,7 @@ The routing service is a separate FastAPI service that combines:
 - **NVIDIA cuOpt** for assignment and recovery optimization
 - **OSRM** for road-following geometry
 
-This separation keeps optimization and map geometry out of the UI code and makes the incident workflow easier to reason about and debug.
+cuOpt receives a real capacitated VRP with time windows (fleet capacities, per-vehicle time windows and max drive times, per-task demand/service/delivery windows) over an OSRM road-network cost matrix, and returns optimal assignments, stop sequencing, ETAs, and deadline violations. This separation keeps optimization and map geometry out of the UI code and makes the incident workflow easier to reason about and debug. See [docs/CUOPT.md](docs/CUOPT.md) for the full integration.
 
 ### 5. Ambient simulator
 

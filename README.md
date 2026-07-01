@@ -153,12 +153,78 @@ When a vehicle breakdown is triggered, Hermes receives the incident context, rev
 
 The system can reassign work, replan routes, run policy checks, record decisions, and process payout-related operations while keeping the operator UI in sync.
 
+## NVIDIA cuOpt — the routing brain
+
+Every "who drives what, in what order" decision — normal dispatch **and** breakdown/congestion recovery — is solved by **[NVIDIA cuOpt](https://build.nvidia.com/nvidia/cuopt)**, NVIDIA's GPU-accelerated route-optimization engine. This is a real vehicle-routing solve against NVIDIA's managed cuOpt endpoint, not a nearest-neighbour heuristic or a mock.
+
+- **Where it lives:** `services/routing/app/providers/cuopt_provider.py`, behind a `RoutingProvider` interface. `cuopt-osrm` is the default provider (`ROUTING_PROVIDER`).
+- **Real VRP model:** cuOpt receives a full vehicle-routing problem — fleet capacities, per-vehicle time windows and max drive times, and per-task demand, service time, and delivery windows.
+- **Real road costs:** OSRM builds the distance + travel-time cost matrix over the actual street network (`services/routing/app/cost_matrix.py`), so cuOpt optimizes on real drive times, not straight lines.
+- **Managed NVCF flow:** requests go to `optimize.api.nvidia.com/v1/nvidia/cuopt` with async submit → status poll → result download.
+- **Rich solution:** cuOpt returns optimal vehicle→task assignments, stop sequencing, and arrival stamps, which become routes, ETAs, unassigned/dropped tasks, and deadline violations.
+
+The exact vehicle-routing problem sent to cuOpt (`services/routing/app/providers/cuopt_provider.py`):
+
+```python
+    def _build_cuopt_payload(
+        self,
+        drivers: list[DriverInput],
+        orders: list[OrderInput],
+        index_by_key: dict[str, int],
+        duration_matrix: list[list[float]],
+        distance_matrix: list[list[float]],
+    ) -> dict[str, Any]:
+        return {
+            "cost_matrix_data": {"data": {"0": distance_matrix}},
+            "travel_time_matrix_data": {"data": {"0": duration_matrix}},
+            "fleet_data": {
+                "vehicle_ids": [driver.id for driver in drivers],
+                "vehicle_locations": [
+                    [
+                        index_by_key[f"driver-start:{driver.id}"],
+                        index_by_key[f"driver-end:{driver.id}"],
+                    ]
+                    for driver in drivers
+                ],
+                "capacities": [
+                    [max(driver.capacity - driver.current_load, 0) for driver in drivers]
+                ],
+                "vehicle_time_windows": [
+                    [driver.time_window.start, driver.time_window.end] for driver in drivers
+                ],
+                "vehicle_max_times": [
+                    driver.max_travel_time_seconds
+                    if driver.max_travel_time_seconds is not None
+                    else driver.time_window.end - driver.time_window.start
+                    for driver in drivers
+                ],
+                "vehicle_types": [0 for _ in drivers],
+                "drop_return_trips": [False for _ in drivers],
+            },
+            "task_data": {
+                "task_ids": [order.id for order in orders],
+                "task_locations": [index_by_key[f"order:{order.id}"] for order in orders],
+                "demand": [[order.demand for order in orders]],
+                "service_times": [order.service_time_seconds for order in orders],
+                "task_time_windows": [
+                    [
+                        order.time_window.start if order.time_window else 0,
+                        order.time_window.end if order.time_window else 86_400,
+                    ]
+                    for order in orders
+                ],
+            },
+        }
+```
+
+**In the demo:** when a truck breaks down, Hermes calls cuOpt through the MCP `request_route_optimisation` and recovery tools to re-solve the VRP for the surviving fleet — reassigning the stranded stops and resequencing deliveries so the replacement route is optimal, not just "next closest." Config lives in `services/routing/.env.example` (`CUOPT_API_URL`, `CUOPT_STATUS_API_URL`, `CUOPT_API_KEY`). Full deep dive: **[docs/CUOPT.md](docs/CUOPT.md)**.
+
 ## Why this matters
 
 HermesRoutiq is not just a route viewer.
 It is a prototype for an autonomous company where an agent helps run dispatch, recovery, and business operations together:
 
-- **routing intelligence** for assignment and recovery
+- **routing intelligence** powered by NVIDIA cuOpt for assignment and recovery
 - **financial awareness** around payouts, refunds, and margin
 - **policy enforcement** before risky actions execute
 - **live visibility** for operators and judges watching the system work
@@ -228,6 +294,7 @@ For the full Hermes sandbox path, see [docs/NEMOCLAW_SETUP.md](docs/NEMOCLAW_SET
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md)
+- [NVIDIA cuOpt routing](docs/CUOPT.md)
 - [Implementation plan](IMPLEMENTATION_PLAN.md)
 - [Security policy](docs/SECURITY_POLICY.md)
 - [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
