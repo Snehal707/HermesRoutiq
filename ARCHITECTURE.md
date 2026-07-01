@@ -7,54 +7,49 @@ The system combines a customer-facing checkout flow, an operator-facing dispatch
 
 ```mermaid
 flowchart TB
-  subgraph users["USERS"]
-    customer["Customer"]
-    operator["Operator / Judge"]
+  customer["Customer"]
+  operator["Operator / Judge"]
+
+  subgraph host["HOST · Node + Python services"]
+    web["Next.js dashboard + checkout + API routes"]
+    bridge["Hermes Bridge · FastAPI<br/>OpenAI-compatible /v1/chat/completions"]
+    mcp["MCP Server · Node/TS · Streamable HTTP<br/>27 tools · role-scoped · spend policy · audit"]
+    routing["Routing Service · FastAPI<br/>cuOpt + OSRM"]
+    simulator["Ambient Simulator · FastAPI"]
   end
 
-  subgraph ui["FRONTEND"]
-    web["Next.js Dashboard + Checkout"]
+  subgraph runtime["NemoClaw / OpenShell sandbox · Docker in WSL (hermes-runway)"]
+    hermes["Hermes Agent · NemoHermes"]
+    skills["Skills (sandbox-side): operator + learned recovery"]
+    mcpcfg["Hermes mcp_servers · 5 role-scoped connections"]
   end
 
-  subgraph control["CONTROL PLANE"]
-    mcp["MCP Server"]
-    bridge["Hermes Bridge"]
-  end
-
-  subgraph runtime["AGENT RUNTIME"]
-    sandbox["NemoHermes / NemoClaw Sandbox"]
-    hermes["Hermes Agent"]
-    model["Nemotron 3 Ultra"]
-  end
-
-  subgraph services["OPERATIONAL SERVICES"]
-    routing["Routing Service\ncuOpt + OSRM"]
-    simulator["Ambient Simulator"]
-  end
+  model["Nemotron 3 Ultra<br/>Nous Portal · OpenRouter fallback"]
 
   subgraph data["STATE + PAYMENTS"]
     postgres["Supabase Postgres"]
     redis["Redis"]
-    stripe["Stripe"]
+    stripe["Stripe · Checkout / Connect / Projects"]
   end
 
-  customer --> web
+  customer --> stripe
   operator --> web
+  stripe -->|webhooks| web
 
-  web --> mcp
+  web -->|trigger reasoning| bridge
+  bridge -->|docker exec / WSL| hermes
+  hermes --> skills
+  hermes -->|reasons on| model
+  hermes --> mcpcfg
+  mcpcfg -->|"HTTP + x-routiq-role (egress gated by OpenShell)"| mcp
+
   web --> simulator
   web --> postgres
-  web --> stripe
 
-  mcp --> bridge
   mcp --> routing
   mcp --> postgres
   mcp --> redis
   mcp --> stripe
-
-  bridge --> sandbox
-  sandbox --> hermes
-  hermes --> model
 ```
 
 ## Core components
@@ -93,8 +88,9 @@ This service is where business rules are enforced before actions are executed.
 
 `services/hermes-bridge`
 
-The bridge connects the repo to the local Hermes runtime running inside the NVIDIA sandbox setup.
-It lets the app-side services call the Hermes runtime without putting model orchestration logic directly in the frontend.
+The bridge is a small FastAPI service that exposes an OpenAI-compatible `/v1/chat/completions` endpoint on the host and proxies each request into the **Hermes agent gateway running inside the NemoClaw/OpenShell sandbox** (via `docker exec` / WSL against the `hermes-runway` container). This lets the app-side services trigger a sandboxed reasoning run without embedding model-orchestration logic in the frontend.
+
+Once running, Hermes reasons on Nemotron 3 Ultra and reaches the tool layer **outbound** through its own `mcp_servers` config — five role-scoped connections (`routiq_monitoring`, `routiq_routing`, `routiq_finance`, `routiq_operations`, `routiq_payment`), each sending a distinct `x-routiq-role` header. NemoClaw/OpenShell governs network egress; the MCP server itself registers only that role's tool subset per session and enforces the spend/role policy. Live tool counts per role: monitoring 3, routing 7, finance 4, operations 11, payment 2 (27 total).
 
 ### 4. Routing service
 
