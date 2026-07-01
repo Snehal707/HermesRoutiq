@@ -1,5 +1,5 @@
 import type { SimClockStatus, SimTickState } from "@/lib/sim/clock";
-import { latLngToLngLat } from "@/lib/sim/movement";
+import { haversineMeters, latLngToLngLat, lngLatToLatLng } from "@/lib/sim/movement";
 import {
   BREAKDOWN_VEHICLE_ID,
   createWorld,
@@ -1211,6 +1211,42 @@ export async function persistTickAndVehicles(
   primeSimulationSnapshotCache({ world, tick });
 }
 
+// True once the vehicle has driven far enough along its route to reach the given
+// stop, using the same distance ÷ speed model the map animates with (so the
+// "delivered" flip coincides with the truck visually arriving, regardless of the
+// routing provider's ETA estimate).
+function hasVehicleReachedStop(
+  vehicle: SimulationWorld["vehicles"][number],
+  stop: { location: { lat: number; lng: number }; etaSeconds: number },
+  elapsedSeconds: number,
+): boolean {
+  const route = vehicle.route;
+  if (route.length < 2) {
+    return true;
+  }
+  const speedMps = vehicle.speedMps > 0 ? vehicle.speedMps : 1;
+  const routeStartAtSeconds = vehicle.routingPlan?.routeStartAtSeconds ?? 0;
+  const traveledMeters = speedMps * Math.max(0, elapsedSeconds - routeStartAtSeconds);
+
+  const target = { lat: stop.location.lat, lng: stop.location.lng };
+  let runningMeters = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let stopMeters = 0;
+  for (let index = 0; index < route.length; index += 1) {
+    const point = lngLatToLatLng(route[index]);
+    if (index > 0) {
+      runningMeters += haversineMeters(lngLatToLatLng(route[index - 1]), point);
+    }
+    const distanceToStop = haversineMeters(point, target);
+    if (distanceToStop < bestDistance) {
+      bestDistance = distanceToStop;
+      stopMeters = runningMeters;
+    }
+  }
+
+  return traveledMeters >= stopMeters;
+}
+
 export async function reconcileSimulationProgress(
   tick: PersistedTickState,
 ): Promise<void> {
@@ -1253,7 +1289,13 @@ export async function reconcileSimulationProgress(
       const stop = vehicle?.routingPlan?.orderedStops.find(
         (candidate) => candidate.orderId === order.id,
       );
-      return Boolean(stop && tick.elapsedSeconds >= stop.etaSeconds);
+      // Mark delivered when the vehicle has physically reached the drop-off in the
+      // same distance/speed model the map animates with, rather than when the
+      // OSRM-duration ETA elapses — otherwise fast vehicles arrive on screen well
+      // before the ETA and the delivered marker lags far behind.
+      return Boolean(
+        vehicle && stop && hasVehicleReachedStop(vehicle, stop, tick.elapsedSeconds),
+      );
     })
     .map((order) => order.id);
   const inTransitOrderIds = world.orders

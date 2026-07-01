@@ -13,7 +13,7 @@ import type {
 
 export const DEFAULT_SIMULATION_SEED = 42;
 export const BREAKDOWN_VEHICLE_ID = "vehicle-3";
-const DEFAULT_SPEED_MPS = 10;
+const DEFAULT_SPEED_MPS = 15;
 // A small congestion patch on the South-hub → Folsom Street Drop corridor, on a
 // segment that OSRM can cleanly detour around one block (verified: avoiding it
 // costs ~0 extra distance). Aligned with the visible "soma-core-gridlock" zone

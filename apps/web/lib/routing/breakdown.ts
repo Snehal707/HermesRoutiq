@@ -8,7 +8,6 @@ import {
   loadPersistedSimulation,
   persistSolvedFleetStateSubset,
 } from "../sim/persistence";
-import { isDispatchableOrderForVehicle } from "../sim/world";
 
 interface ReplacementRouteExecution {
   vehicleId: string;
@@ -114,11 +113,15 @@ export async function executeBreakdownRecoveryReroute(params: {
       throw new Error(`Replacement vehicle not found: ${vehicleId}`);
     }
   }
+  // Reroute the incident's still-active orders regardless of which vehicle they
+  // currently sit on: Hermes may run assign_replacement_driver before this step
+  // (moving them onto a replacement vehicle already), so requiring them to still
+  // be on the broken vehicle would spuriously fail after a valid reassignment.
   const orderIds = world.orders
     .filter(
       (order) =>
         incident.orderIds.includes(order.id) &&
-        isDispatchableOrderForVehicle(order, brokenVehicleId),
+        (order.status === "assigned" || order.status === "in_transit"),
     )
     .map((order) => order.id);
 

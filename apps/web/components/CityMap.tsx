@@ -120,10 +120,9 @@ const SIGNAL_PHASE_SECONDS: Record<SignalLight["phase"], number> = {
   red: 14,
 };
 
-// Visual-only signal stops: how close (meters) a moving delivery truck must be
-// to a red signal's stop line to hold, how far ahead to sample for heading, and
-// the largest per-frame time step we trust (anything bigger is a reset/seek).
-// None of this affects route ETAs or recovery timing — only the rendered marker.
+// Visual-only signal stop: a delivery truck pauses at ONE red light per trip for
+// realism, then drives through the rest. Purely cosmetic — route ETAs and
+// recovery timing are never shifted by it.
 const SIGNAL_STOP_RADIUS_METERS = 22;
 const SIGNAL_STOP_LOOKAHEAD_SECONDS = 1.2;
 const MAX_ANIMATION_FRAME_SECONDS = 5;
@@ -793,6 +792,28 @@ function resolveAmbientVehiclePosition(
   return crossingRedSignal ? basePosition : projectedPosition;
 }
 
+// Cumulative metres along `route` up to the vertex nearest `point` — used to tell
+// whether a truck has driven far enough to reach a stop.
+function routeDistanceToPoint(
+  route: [number, number][],
+  point: [number, number],
+): number {
+  let runningMeters = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestCumulative = 0;
+  for (let index = 0; index < route.length; index += 1) {
+    if (index > 0) {
+      runningMeters += haversineMeters(route[index - 1], route[index]);
+    }
+    const distance = haversineMeters(route[index], point);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestCumulative = runningMeters;
+    }
+  }
+  return bestCumulative;
+}
+
 function pointToSegmentDistance(
   point: [number, number],
   start: [number, number],
@@ -1069,36 +1090,6 @@ export function CityMap({
     [world.pickupHubs],
   );
 
-  const orderPointData = useMemo((): OrderPointDatum[] => {
-    const customersById = new globalThis.Map(
-      world.customers.map((customer) => [customer.id, customer]),
-    );
-
-    return world.orders
-      .map((order) => {
-        if (!isStripeBackedOrder(order)) {
-          return null;
-        }
-
-        if (order.status === "pending") {
-          return null;
-        }
-
-        const customer = customersById.get(order.customerId);
-        if (!customer) {
-          return null;
-        }
-
-        return {
-          id: order.id,
-          position: latLngToLngLat(customer.location),
-          amountLabel: `$${(order.revenueCents / 100).toFixed(0)}`,
-          status: getOrderStatus(order.status),
-        };
-      })
-      .filter((order): order is OrderPointDatum => order !== null);
-  }, [world.customers, world.orders]);
-
   const signalLightData = useMemo(
     (): SignalLightDatum[] =>
       signalLights.map((signal) => {
@@ -1138,15 +1129,21 @@ export function CityMap({
     [ambientElapsedSeconds, ambientRouteSegmentCache, ambientSnapshotTimeSeconds, signalLights],
   );
 
-  // Per-vehicle "seconds held at red lights", so the rendered marker pauses at a
-  // red signal and resumes smoothly on green. This is purely visual — route ETAs
-  // and recovery timing run on the real clock and are never shifted by it.
+  // Per-vehicle signal-stop state. heldSeconds is how long the truck's visual
+  // time has been frozen at red lights; completedSignalIds are signals it has
+  // already stopped at (so it stops once per signal, never twice at the same one).
   const signalStopStateRef = useRef<{
     lastElapsed: number;
-    stoppedSecondsByVehicle: Map<string, number>;
-  }>({ lastElapsed: elapsedSeconds, stoppedSecondsByVehicle: new Map() });
+    byVehicle: Map<
+      string,
+      { heldSeconds: number; holdingSignalId: string | null; completedSignalIds: Set<string> }
+    >;
+  }>({ lastElapsed: elapsedSeconds, byVehicle: new Map() });
 
-  const driverData = useMemo((): DriverDatum[] => {
+  const { driverData, deliveredByArrivalOrderIds } = useMemo((): {
+    driverData: DriverDatum[];
+    deliveredByArrivalOrderIds: Set<string>;
+  } => {
     const stopState = signalStopStateRef.current;
     const rawDelta = elapsedSeconds - stopState.lastElapsed;
     // Ignore backward/large jumps (reset, tab refocus, speed change) so we don't
@@ -1154,75 +1151,144 @@ export function CityMap({
     const frameDelta =
       rawDelta > 0 && rawDelta < MAX_ANIMATION_FRAME_SECONDS ? rawDelta : 0;
     stopState.lastElapsed = elapsedSeconds;
-    const stoppedByVehicle = stopState.stoppedSecondsByVehicle;
+    const byVehicle = stopState.byVehicle;
     const redSignals = signalLightData.filter((signal) => signal.phase === "red");
+    const reachedOrderIds = new Set<string>();
+    const drivers: DriverDatum[] = [];
 
-    return world.vehicles
-      .map((vehicle): DriverDatum => {
-        const renderRoute = getRenderableRoute(vehicle, routeRenderBounds);
-        const isParked = isParkedVehicle(vehicle);
-        const routeStartAtSeconds = vehicle.routingPlan?.routeStartAtSeconds ?? 0;
-        const isMoving =
-          !isParked && vehicle.frozenAtSeconds === null && renderRoute.length > 1;
+    for (const vehicle of world.vehicles) {
+      const renderRoute = getRenderableRoute(vehicle, routeRenderBounds);
+      const isParked = isParkedVehicle(vehicle);
+      const routeStartAtSeconds = vehicle.routingPlan?.routeStartAtSeconds ?? 0;
+      const isMoving =
+        !isParked && vehicle.frozenAtSeconds === null && renderRoute.length > 1;
 
-        const sampleAt = (heldSeconds: number, offset: number): [number, number] =>
-          latLngToLngLat(
-            getVehiclePositionAtTime(
-              renderRoute,
-              elapsedSeconds - heldSeconds + offset,
-              vehicle.speedMps,
-              vehicle.frozenAtSeconds,
-              routeStartAtSeconds,
-            ).position,
-          );
-
-        if (!isMoving) {
-          // Not actively driving — drop any accumulated hold and show its plain spot.
-          stoppedByVehicle.delete(vehicle.id);
-          const basePosition = sampleAt(0, 0);
-          return {
-            id: vehicle.id,
-            position: isParked
-              ? parkedVehicleLayout.get(vehicle.id) ?? basePosition
-              : basePosition,
-            routeStatus: vehicle.routeStatus,
-            isParked,
-          };
-        }
-
-        let stoppedSeconds = stoppedByVehicle.get(vehicle.id) ?? 0;
-        const here = sampleAt(stoppedSeconds, 0);
-        const ahead = sampleAt(stoppedSeconds, SIGNAL_STOP_LOOKAHEAD_SECONDS);
-        const facingRed = redSignals.some(
-          (signal) =>
-            pointToSegmentDistance(signal.controlPosition, here, ahead) <=
-            SIGNAL_STOP_RADIUS_METERS,
+      const sampleAt = (heldSeconds: number, offset: number): [number, number] =>
+        latLngToLngLat(
+          getVehiclePositionAtTime(
+            renderRoute,
+            elapsedSeconds - heldSeconds + offset,
+            vehicle.speedMps,
+            vehicle.frozenAtSeconds,
+            routeStartAtSeconds,
+          ).position,
         );
 
-        if (facingRed) {
-          // Grow the hold so visual time doesn't advance while the light is red;
-          // the marker stays put and resumes (no jump) once it turns green.
-          stoppedSeconds += frameDelta;
-        }
-        stoppedByVehicle.set(vehicle.id, stoppedSeconds);
-
-        return {
+      if (!isMoving) {
+        byVehicle.delete(vehicle.id);
+        const basePosition = sampleAt(0, 0);
+        drivers.push({
           id: vehicle.id,
-          position: sampleAt(stoppedSeconds, 0),
+          position: isParked
+            ? parkedVehicleLayout.get(vehicle.id) ?? basePosition
+            : basePosition,
           routeStatus: vehicle.routeStatus,
-          isParked: false,
-        };
-      })
+          isParked,
+        });
+        continue;
+      }
+
+      const state =
+        byVehicle.get(vehicle.id) ??
+        { heldSeconds: 0, holdingSignalId: null as string | null, completedSignalIds: new Set<string>() };
+
+      // Hold at the nearest red signal on the path that we haven't already stopped
+      // at. While red, the truck's position is frozen (one clean stop); once it
+      // turns green we record it and drive on, and won't stop at it again.
+      const here = sampleAt(state.heldSeconds, 0);
+      const ahead = sampleAt(state.heldSeconds, SIGNAL_STOP_LOOKAHEAD_SECONDS);
+      let blockingSignalId: string | null = null;
+      let blockingDistance = Number.POSITIVE_INFINITY;
+      for (const signal of redSignals) {
+        if (state.completedSignalIds.has(signal.id)) {
+          continue;
+        }
+        const distance = pointToSegmentDistance(signal.controlPosition, here, ahead);
+        if (distance <= SIGNAL_STOP_RADIUS_METERS && distance < blockingDistance) {
+          blockingDistance = distance;
+          blockingSignalId = signal.id;
+        }
+      }
+      if (blockingSignalId) {
+        state.heldSeconds += frameDelta; // freeze visual time while red
+        state.holdingSignalId = blockingSignalId;
+      } else if (state.holdingSignalId) {
+        state.completedSignalIds.add(state.holdingSignalId);
+        state.holdingSignalId = null;
+      }
+      byVehicle.set(vehicle.id, state);
+
+      // Mark an order reached once the truck has *visually* driven far enough to
+      // its drop-off (accounting for any signal hold), so the delivered marker
+      // flips exactly as the truck arrives — not before or after.
+      const visualTraveledMeters =
+        vehicle.speedMps *
+        Math.max(0, elapsedSeconds - routeStartAtSeconds - state.heldSeconds);
+      for (const stop of vehicle.routingPlan?.orderedStops ?? []) {
+        if (!stop.orderId) {
+          continue;
+        }
+        const stopLngLat: [number, number] = [stop.location.lng, stop.location.lat];
+        if (visualTraveledMeters >= routeDistanceToPoint(renderRoute, stopLngLat)) {
+          reachedOrderIds.add(stop.orderId);
+        }
+      }
+
+      drivers.push({
+        id: vehicle.id,
+        position: sampleAt(state.heldSeconds, 0),
+        routeStatus: vehicle.routeStatus,
+        isParked: false,
+      });
+    }
+
+    return {
       // Vehicles idle/staged at the hub are hidden so they don't pile on top of
       // the hub icon; a truck only appears once it's actually out on a route.
-      .filter((driver) => !driver.isParked);
-  }, [
-    elapsedSeconds,
-    parkedVehicleLayout,
-    routeRenderBounds,
-    signalLightData,
-    world.vehicles,
-  ]);
+      driverData: drivers.filter((driver) => !driver.isParked),
+      deliveredByArrivalOrderIds: reachedOrderIds,
+    };
+  }, [elapsedSeconds, parkedVehicleLayout, routeRenderBounds, signalLightData, world.vehicles]);
+
+  const orderPointData = useMemo((): OrderPointDatum[] => {
+    const customersById = new globalThis.Map(
+      world.customers.map((customer) => [customer.id, customer]),
+    );
+
+    return world.orders
+      .map((order) => {
+        if (!isStripeBackedOrder(order)) {
+          return null;
+        }
+
+        if (order.status === "pending") {
+          return null;
+        }
+
+        const customer = customersById.get(order.customerId);
+        if (!customer) {
+          return null;
+        }
+
+        // Show the drop as delivered as soon as the truck visually arrives, even
+        // if the server hasn't reconciled the status yet, so the mark lands with
+        // the truck rather than a few polls later.
+        const status =
+          order.status === "assigned" || order.status === "in_transit"
+            ? deliveredByArrivalOrderIds.has(order.id)
+              ? "delivered"
+              : getOrderStatus(order.status)
+            : getOrderStatus(order.status);
+
+        return {
+          id: order.id,
+          position: latLngToLngLat(customer.location),
+          amountLabel: `$${(order.revenueCents / 100).toFixed(0)}`,
+          status,
+        };
+      })
+      .filter((order): order is OrderPointDatum => order !== null);
+  }, [deliveredByArrivalOrderIds, world.customers, world.orders]);
 
   const ambientVehicleData = useMemo(
     (): AmbientVehicleDatum[] =>

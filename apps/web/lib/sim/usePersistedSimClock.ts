@@ -27,6 +27,12 @@ const TICK_SYNC_MS = 1_500;
 const WORLD_REFRESH_MS = 2_500;
 const BURST_REFRESH_MS = 350;
 const BURST_REFRESH_DURATION_MS = 8_000;
+// When a vehicle is within this many sim-seconds of an undelivered stop's ETA,
+// poll the world fast so the "delivered" marker flips right as the truck arrives
+// instead of a few seconds later.
+const DELIVERY_APPROACH_LEAD_SECONDS = 6;
+const DELIVERY_APPROACH_TRAIL_SECONDS = 5;
+const DELIVERY_APPROACH_BURST_MS = 1_500;
 // The dev server can queue requests for several seconds during polling bursts
 // (HMR recompiles + concurrent pollers blocking the event loop), so allow more
 // headroom than the worst-case observed latency before aborting.
@@ -96,6 +102,36 @@ interface PlanningPayload {
 type FetchResult<T> =
   | { kind: "success"; data: T }
   | { kind: "planning"; data: PlanningPayload };
+
+// True when any vehicle is within the approach window of a stop whose order is
+// still undelivered — i.e. the "delivered" flip is imminent and we want fast polls.
+function isApproachingDelivery(
+  world: SimulationWorld,
+  elapsedSeconds: number,
+): boolean {
+  for (const vehicle of world.vehicles) {
+    const stops = vehicle.routingPlan?.orderedStops;
+    if (!stops) {
+      continue;
+    }
+    for (const stop of stops) {
+      if (!stop.orderId) {
+        continue;
+      }
+      const order = world.orders.find((candidate) => candidate.id === stop.orderId);
+      if (!order || order.status === "delivered" || order.status === "cancelled") {
+        continue;
+      }
+      if (
+        elapsedSeconds >= stop.etaSeconds - DELIVERY_APPROACH_LEAD_SECONDS &&
+        elapsedSeconds <= stop.etaSeconds + DELIVERY_APPROACH_TRAIL_SECONDS
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 function toPlanningMessage(payload?: PlanningPayload): string {
   const phase = payload?.planning?.phase;
@@ -257,6 +293,16 @@ export function usePersistedSimClock(): UsePersistedSimClockResult {
       const currentWorld = worldRef.current;
       if (nextTick.status !== "running" || !currentWorld) {
         return;
+      }
+
+      // Speed up world polling as a truck nears a drop-off so the delivered
+      // marker lands right as it arrives (cleared automatically once past).
+      if (isApproachingDelivery(currentWorld, nextTick.elapsedSeconds)) {
+        burstRefreshWindowRef.current = {
+          startedAt: Date.now(),
+          durationMs: DELIVERY_APPROACH_BURST_MS,
+          intervalMs: BURST_REFRESH_MS,
+        };
       }
 
       const now = Date.now();
