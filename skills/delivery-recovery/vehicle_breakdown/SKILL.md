@@ -1,3 +1,5 @@
-# Delivery Recovery
+# vehicle_breakdown_recovery
 
-Generated at 2026-06-29T23:06:51.033Z
+Recover a three-delivery vehicle breakdown by comparing expected net benefit,
+assigning two replacement drivers, paying recovery incentives,
+verifying completion, and notifying the affected customers.

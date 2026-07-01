@@ -1,6 +1,6 @@
 {
-  "skillName": "delivery_recovery",
-  "incidentId": null,
+  "skillName": "vehicle_breakdown_recovery",
+  "incidentId": "95ae1f50-9690-41c3-ab92-b58f76024787",
   "incidentType": "vehicle_breakdown",
-  "createdAt": "2026-06-29T23:06:51.037Z"
+  "createdAt": "2026-07-01T03:55:35.692Z"
 }
