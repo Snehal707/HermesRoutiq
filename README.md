@@ -12,6 +12,18 @@ It shows how a Hermes agent can monitor a live fleet, react to a vehicle failure
 
 Built for the **Hermes Agent Accelerated Business Hackathon** by Nous Research, NVIDIA, and Stripe.
 
+## Demo
+
+**Watch the full walkthrough: [youtu.be/QxU-MQ4tS48](https://youtu.be/QxU-MQ4tS48)**
+
+The agent recovers a live vehicle breakdown end to end — reading state, comparing options, paying a replacement driver through Stripe Connect, and banking the recovery as a reusable skill.
+
+| Recovery complete | Real Stripe Connect payout |
+|---|---|
+| ![Recovery complete panel showing 1/1 deliveries recovered, net financial benefit, 146s recovery time, and the vehicle_breakdown_recovery skill learned from the incident](docs/assets/recovery-complete.png) | ![Stripe sandbox transfer of US$4.00 labelled HermesRoutiq incident payout for driver driver-2](docs/assets/stripe-connect-payout.png) |
+
+![Dashboard payments feed showing an outgoing replacement driver payout and an incoming Stripe Checkout payment](docs/assets/dashboard-payments.png)
+
 ## The problem
 
 Last-mile delivery breaks down fast when a driver or vehicle fails mid-route:
