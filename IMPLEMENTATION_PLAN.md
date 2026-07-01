@@ -106,30 +106,13 @@ Status: complete
 
 - tighten the live map, recovery, and reasoning experience
 - make the breakdown scenario easy to understand visually
-- keep the public repo and demo flow clean enough for hackathon review
+- keep the public repo and demo flow clean enough for review
 
-Status: in progress
+Status: complete
 
-## Current focus
+## Proof path
 
-The strongest proof path in the repo is the **paid delivery -> live vehicle breakdown -> Hermes recovery** flow.
-
-The main polish work now is:
-
-- tightening public repo presentation
-- simplifying the operator UI
-- keeping the recovery story visually obvious during the demo
-
-## Public repo standard
-
-Before final submission, the repo should stay clean and judge-friendly:
-
-- no temp QA artifacts
-- no local cache folders
-- no duplicated docs
-- no debug payload dumps
-- no committed secrets
-- clear README, architecture, and setup docs
+The strongest end-to-end story in the repo is the **paid delivery -> live vehicle breakdown -> Hermes recovery** flow: a customer order is paid through Stripe Checkout, a vehicle fails mid-route, and Hermes reasons over recovery options, re-solves routing through NVIDIA cuOpt, runs policy checks, and pays a replacement driver through Stripe Connect — all with an operator-facing audit trail.
 
 ## Related docs
 

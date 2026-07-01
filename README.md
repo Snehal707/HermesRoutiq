@@ -320,3 +320,7 @@ This repo answers that question through a live breakdown-and-recovery demo that 
 - **NVIDIA** - Nemotron 3 Ultra, cuOpt, NemoClaw / NemoHermes context
 - **Stripe** - Checkout, Connect, Projects
 - **Snehal707** - HermesRoutiq
+
+## License
+
+Released under the [MIT License](LICENSE).
