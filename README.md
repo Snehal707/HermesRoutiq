@@ -259,7 +259,7 @@ HermesRoutiq/
 
 1. Clone the repo
 2. Install workspace dependencies
-3. Copy environment files and configure keys
+3. Copy environment files and configure keys (`.env.example`, `services/mcp-server/.env.example`, `services/routing/.env.example`)
 4. Run database setup
 5. Start the routing service
 6. Start the simulator
@@ -298,19 +298,23 @@ For the full Hermes sandbox path, see [docs/NEMOCLAW_SETUP.md](docs/NEMOCLAW_SET
 - [Security policy](docs/SECURITY_POLICY.md)
 - [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
 
-## Hackathon framing
+## Hackathon submission
 
-HermesRoutiq explores a simple question:
+Built for the **Hermes Agent Accelerated Business Hackathon** (Nous Research, NVIDIA, Stripe).
+
+| Sponsor | Integration in HermesRoutiq |
+|---|---|
+| **Nous / Hermes** | Hermes agent in NemoClaw sandbox with operator + learned recovery skills |
+| **NVIDIA** | Nemotron 3 Ultra reasoning (OpenRouter via NemoClaw) + **cuOpt** VRP for dispatch and recovery |
+| **Stripe** | Checkout (earn) · Connect driver payouts (spend) · Projects provisioning pattern |
+
+**Demo:** [YouTube walkthrough](https://youtu.be/QxU-MQ4tS48) · **Setup:** [NemoClaw](docs/NEMOCLAW_SETUP.md) · **MCP env:** [services/mcp-server/.env.example](services/mcp-server/.env.example)
+
+HermesRoutiq asks one question:
 
 **Can Hermes run part of a delivery company end to end when operations go wrong?**
 
-This repo answers that question through a live breakdown-and-recovery demo that combines:
-
-- agent reasoning
-- routing tools
-- policy constraints
-- payments infrastructure
-- operational visibility
+This repo answers it through a live breakdown-and-recovery demo that combines agent reasoning, cuOpt routing, policy constraints, Stripe payments, and operational visibility.
 
 ## Credits
 
