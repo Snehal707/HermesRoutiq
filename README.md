@@ -196,8 +196,13 @@ Hermes acts only through **27 typed, role-scoped MCP tools** (Zod-validated, spe
 - `create_driver_payout` — pay a driver via Stripe Connect transfer
 - `issue_customer_refund` — refund a customer
 
-### Skills (learning loop)
+### Skills
 
+**Capability skills** (`.agents/skills/`) — installed agent capabilities
+- **`stripe-projects-cli`** — provision, deploy, and access third-party services and sync their credentials through the Stripe Projects CLI (the repo is a live Stripe project).
+- **`sp-inngest`** — Inngest provider guidance generated via `stripe projects llm-context` for the provisioned Inngest service.
+
+**Learned recovery skills** (`skills/`) — created and reused by the learning loop
 - **`hermes-routiq-operator`** — master operator skill: project context for dispatch, recovery, incidents, routing, policy, payouts, and notifications.
 - **`vehicle_breakdown_recovery`** — compare net benefit, assign replacement driver(s), pay recovery incentives, verify completion, notify customers.
 - **`congestion_recovery`** — freeze the affected vehicle, reroute around the blocked zone, resume once the new route persists, and store the reroute pattern for reuse.
