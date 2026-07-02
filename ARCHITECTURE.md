@@ -198,6 +198,5 @@ HermesRoutiq/
 ## Related docs
 
 - [README](README.md)
-- [Implementation plan](IMPLEMENTATION_PLAN.md)
 - [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
 - [Security policy](docs/SECURITY_POLICY.md)
