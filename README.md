@@ -41,8 +41,8 @@ HermesRoutiq turns that failure into an autonomous operations workflow.
 
 - Runs a live delivery control room on a 2.5D city map
 - Tracks active deliveries, incidents, policy checks, and payments
-- Lets Hermes reason through breakdown recovery in real time
-- Uses routing services to assign or reroute delivery work
+- Lets Hermes reason through incident recovery in real time — vehicle breakdowns and traffic congestion
+- Uses routing services to assign, reroute around congestion, and recover stranded deliveries
 - Uses Stripe to handle checkout and driver payout flows
 - Persists operational state, decisions, and financial records for auditability
 
@@ -147,7 +147,7 @@ The map shows active vehicles, route overlays, traffic zones, and signal context
 
 ### 4. Incident response
 
-When a vehicle breakdown is triggered, Hermes receives the incident context, reviews affected deliveries, checks available recovery options, and requests the tools it needs.
+When an incident is triggered — a **vehicle breakdown** or a **traffic congestion** event — Hermes receives the incident context, reviews affected deliveries, checks available recovery options, and requests the tools it needs. Breakdowns are recovered by reassigning stranded work to a replacement driver; congestion is recovered by rerouting the affected vehicle around the blocked area.
 
 ### 5. Recovery execution
 
