@@ -153,6 +153,56 @@ When a vehicle breakdown is triggered, Hermes receives the incident context, rev
 
 The system can reassign work, replan routes, run policy checks, record decisions, and process payout-related operations while keeping the operator UI in sync.
 
+## Hermes tools & skills
+
+Hermes acts only through **27 typed, role-scoped MCP tools** (Zod-validated, spend-policy-gated, and audit-logged) plus a library of **skills** it reuses and improves across incidents.
+
+### Tools by role
+
+**Monitoring** — read-only situational awareness
+- `get_business_snapshot` — fleet, orders, and financial state at a glance
+- `get_active_orders` — orders currently assigned or in transit
+- `get_incident_details` — full context for an active incident
+
+**Routing** — dispatch and route optimization (cuOpt + OSRM)
+- `get_driver_location` — a vehicle's current position
+- `get_available_drivers` — idle drivers available to reassign
+- `preview_paid_order_dispatch` — preview the assignment/route before release
+- `request_route_optimisation` — solve the fleet VRP with cuOpt
+- `apply_congestion_recovery_route` — reroute a vehicle around a congestion zone
+- `apply_breakdown_recovery_reroute` — move a broken vehicle's orders onto replacements
+- `dispatch_paid_order` — release a paid order to a vehicle
+
+**Finance** — money-aware decisioning
+- `calculate_financial_exposure` — revenue at risk, refund and churn exposure
+- `check_spending_policy` — enforce the spend cap (approve/deny)
+- `compare_recovery_options` — score recovery strategies by expected net benefit
+- `provision_event_surge_capacity` — provision surge capacity via Stripe
+
+**Operations** — execute and record the recovery
+- `assign_replacement_driver` — assign a replacement to affected orders
+- `provision_infrastructure` — provision a service via Stripe Projects
+- `ensure_pending_checkout_order` — create/ensure a pending checkout order
+- `mark_checkout_order_paid` — mark a checkout order paid
+- `record_payment_declined_incident` — log a declined-payment incident
+- `record_operational_event` — log an operational event
+- `complete_delivery_recovery` — finalize recovery once the vehicle arrives
+- `verify_delivery_recovery` — confirm recovered orders delivered
+- `send_customer_notification` — notify the affected customer
+- `record_agent_decision` — log reasoning, options, and selection
+- `create_recovery_skill` — save a reusable recovery skill (learning loop)
+
+**Payment** — real Stripe money movement (idempotent)
+- `create_driver_payout` — pay a driver via Stripe Connect transfer
+- `issue_customer_refund` — refund a customer
+
+### Skills (learning loop)
+
+- **`hermes-routiq-operator`** — master operator skill: project context for dispatch, recovery, incidents, routing, policy, payouts, and notifications.
+- **`vehicle_breakdown_recovery`** — compare net benefit, assign replacement driver(s), pay recovery incentives, verify completion, notify customers.
+- **`congestion_recovery`** — freeze the affected vehicle, reroute around the blocked zone, resume once the new route persists, and store the reroute pattern for reuse.
+- **`payment_declined_recovery`** — keep dispatch blocked, contact the customer with a retry path, and preserve fleet capacity until payment succeeds.
+
 ## NVIDIA cuOpt — the routing brain
 
 Every "who drives what, in what order" decision — normal dispatch **and** breakdown/congestion recovery — is solved by **[NVIDIA cuOpt](https://build.nvidia.com/nvidia/cuopt)**, NVIDIA's GPU-accelerated route-optimization engine. This is a real vehicle-routing solve against NVIDIA's managed cuOpt endpoint, not a nearest-neighbour heuristic or a mock.

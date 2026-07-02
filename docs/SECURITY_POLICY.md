@@ -34,9 +34,9 @@ So the stronger live behavior is:
 | Role | Allowed tools |
 |---|---|
 | Monitoring | `get_business_snapshot`, `get_active_orders`, `get_incident_details` |
-| Routing | `get_driver_location`, `get_available_drivers`, `request_route_optimisation`, `dispatch_paid_order` |
+| Routing | `get_driver_location`, `get_available_drivers`, `preview_paid_order_dispatch`, `request_route_optimisation`, `apply_congestion_recovery_route`, `apply_breakdown_recovery_reroute`, `dispatch_paid_order` |
 | Finance | `calculate_financial_exposure`, `check_spending_policy`, `compare_recovery_options`, `provision_event_surge_capacity` |
-| Operations | `assign_replacement_driver`, `provision_infrastructure`, `verify_delivery_recovery`, `send_customer_notification`, `record_agent_decision`, `create_recovery_skill` |
+| Operations | `assign_replacement_driver`, `provision_infrastructure`, `ensure_pending_checkout_order`, `mark_checkout_order_paid`, `record_payment_declined_incident`, `record_operational_event`, `complete_delivery_recovery`, `verify_delivery_recovery`, `send_customer_notification`, `record_agent_decision`, `create_recovery_skill` |
 | Payment | `create_driver_payout`, `issue_customer_refund` |
 
 Requests that claim a role outside that allow-list are hidden at the HTTP tool-surface level where possible, and any allowed per-call authorization decision is logged to `policy_evaluations`.
