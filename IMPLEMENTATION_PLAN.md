@@ -120,4 +120,3 @@ The strongest end-to-end story in the repo is the **paid delivery -> live vehicl
 - [Architecture](ARCHITECTURE.md)
 - [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
 - [Security policy](docs/SECURITY_POLICY.md)
-- [Demo script](docs/DEMO_SCRIPT.md)

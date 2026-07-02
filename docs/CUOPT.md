@@ -75,4 +75,3 @@ When a truck breaks down mid-route in the demo, recovery isn't "send the nearest
 
 - [README](../README.md)
 - [Architecture](../ARCHITECTURE.md)
-- [Demo script](DEMO_SCRIPT.md)

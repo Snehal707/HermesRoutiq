@@ -298,7 +298,6 @@ For the full Hermes sandbox path, see [docs/NEMOCLAW_SETUP.md](docs/NEMOCLAW_SET
 - [Implementation plan](IMPLEMENTATION_PLAN.md)
 - [Security policy](docs/SECURITY_POLICY.md)
 - [NemoClaw setup](docs/NEMOCLAW_SETUP.md)
-- [Demo script](docs/DEMO_SCRIPT.md)
 
 ## Hackathon framing
 
