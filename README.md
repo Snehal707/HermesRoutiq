@@ -314,7 +314,7 @@ HermesRoutiq/
 
 1. Clone the repo
 2. Install workspace dependencies
-3. Copy environment files and configure keys (`.env.example`, `services/mcp-server/.env.example`, `services/routing/.env.example`)
+3. Copy environment files and configure keys (`apps/web/.env.example` → `apps/web/.env.local`, plus `.env.example`, `services/mcp-server/.env.example`, `services/routing/.env.example`). Next.js only auto-loads env from `apps/web/`, so the dashboard's Supabase/Stripe keys must live in `apps/web/.env.local`.
 4. Run database setup
 5. Start the routing service
 6. Start the simulator
