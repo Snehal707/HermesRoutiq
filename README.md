@@ -7,7 +7,7 @@
 [![Stripe](https://img.shields.io/badge/Stripe-Checkout%20%2B%20Connect-635BFF?logo=stripe)](https://stripe.com/)
 [![NVIDIA cuOpt](https://img.shields.io/badge/NVIDIA-cuOpt-76B900)](https://build.nvidia.com/nvidia/cuopt)
 
-HermesRoutiq is a prototype **autonomous delivery company** for last-mile operations.
+HermesRoutiq is a prototype **autonomous delivery company** for last-mile operations — an agent that can **earn, spend, and run real operations** for a delivery business.
 It shows how a Hermes agent can monitor a live fleet, react to a vehicle failure, evaluate financial risk, call routing and payment tools, and drive recovery in real time.
 
 Built for the **Hermes Agent Accelerated Business Hackathon** by Nous Research, NVIDIA, and Stripe.
@@ -357,11 +357,13 @@ For the full Hermes sandbox path, see [docs/NEMOCLAW_SETUP.md](docs/NEMOCLAW_SET
 
 Built for the **Hermes Agent Accelerated Business Hackathon** (Nous Research, NVIDIA, Stripe).
 
+The brief asked for agents that **earn, spend, and run real operations** — run **safely** through NemoClaw, **quickly** on Nemotron 3 Ultra, **intelligently** with agent skills, and using **Stripe Skills** to buy what they need, provision their own SaaS, and pay for the services they use. HermesRoutiq maps to each:
+
 | Sponsor | Integration in HermesRoutiq |
 |---|---|
-| **Nous / Hermes** | Hermes agent in NemoClaw sandbox with operator + learned recovery skills |
-| **NVIDIA** | Nemotron 3 Ultra reasoning (OpenRouter via NemoClaw) + **cuOpt** VRP for dispatch and recovery |
-| **Stripe** | Checkout (earn) · Connect driver payouts (spend) · Projects provisioning pattern |
+| **Nous / Hermes** | Hermes agent that runs the delivery ops loop — monitor, decide, recover — with operator + **learned recovery skills** it banks after each incident |
+| **NVIDIA** | **safely** (NemoClaw sandbox isolation) · **quickly** (Nemotron 3 Ultra reasoning via OpenRouter) · **intelligently** (**cuOpt** VRP for dispatch + breakdown/congestion recovery) |
+| **Stripe** | **earns** via Checkout · **pays for what it uses** through Connect driver payouts + customer refunds · **provisions its own SaaS** via the Stripe Projects / Billing surge-capacity pattern |
 
 **Demo:** [YouTube walkthrough](https://youtu.be/QxU-MQ4tS48) · **Setup:** [NemoClaw](docs/NEMOCLAW_SETUP.md) · **MCP env:** [services/mcp-server/.env.example](services/mcp-server/.env.example)
 
